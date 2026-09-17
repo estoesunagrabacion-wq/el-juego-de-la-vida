@@ -1,0 +1,1367 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#070c17" />
+<title>Juego de la Vida — tablero de Conway</title>
+<style>
+  :root{
+    --bg:#070c17; --card:#0e1729; --card2:#0b1322; --line:#1e2b45;
+    --txt:#e6eef6; --muted:#8fa0b8; --accent:#ffd166; --accent2:#4ea1ff;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(900px 600px at 15% -10%, rgba(78,161,255,.10), transparent 60%),
+      radial-gradient(700px 500px at 95% 0%, rgba(255,209,102,.08), transparent 55%),
+      var(--bg);
+    color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 40px}
+
+  header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .logo{width:48px;height:48px;border-radius:13px;border:1px solid var(--line);
+    background:linear-gradient(135deg,#14243d,#0a1424);display:grid;place-items:center;font-size:24px;
+    box-shadow:0 8px 26px rgba(0,0,0,.55)}
+  h1{font-size:20px;margin:0;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:13px;margin:3px 0 0}
+
+  .shell{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+  @media (max-width:900px){ .shell{grid-template-columns:1fr} }
+
+  .board{
+    position:relative;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+    background:#050a13;box-shadow:0 18px 50px rgba(0,0,0,.6);
+    aspect-ratio:16/10;min-height:320px;
+  }
+  @media (max-width:900px){ .board{aspect-ratio:4/3} }
+  #board{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.55) 100%)}
+
+  .hud{
+    position:absolute;left:12px;top:12px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .chip{
+    background:rgba(8,14,26,.72);border:1px solid rgba(120,150,200,.22);border-radius:999px;
+    padding:5px 11px;font-size:12px;color:var(--muted);backdrop-filter:blur(6px)
+  }
+  .chip b{color:var(--txt);font-weight:700}
+  .chip.state{color:#04121f;background:var(--accent2);border-color:transparent;font-weight:700}
+  .chip.state.calm{background:var(--accent);}
+  .hint{position:absolute;right:12px;bottom:12px;font-size:11.5px;color:var(--muted);
+    background:rgba(8,14,26,.65);border:1px solid rgba(120,150,200,.18);border-radius:10px;padding:6px 10px;
+    pointer-events:none;backdrop-filter:blur(6px);transition:opacity .5s}
+  .hint.oculto{opacity:0}
+  .scan{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .35s;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,.30) 0 1px, transparent 1px 3px)}
+  .board.crt .scan{opacity:1}
+  .toast{position:absolute;left:50%;bottom:16px;transform:translate(-50%,10px);
+    background:rgba(8,14,26,.92);border:1px solid rgba(120,150,200,.28);color:var(--txt);
+    border-radius:10px;padding:8px 14px;font-size:12.5px;opacity:0;pointer-events:none;
+    backdrop-filter:blur(6px);transition:opacity .25s,transform .25s}
+  .toast.ver{opacity:1;transform:translate(-50%,0)}
+  @media (max-width:640px){ .hint{display:none} }
+
+  .panel{display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:13px}
+  .card h2{font-size:13px;margin:0 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .grid3 .btn{padding:10px 6px;font-size:13px}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--txt);
+    border-radius:10px;padding:10px 12px;font-size:14px;font-weight:600;cursor:pointer;
+    font-family:inherit;transition:transform .07s,filter .12s,background .12s}
+  .btn:hover{filter:brightness(1.18)}
+  .btn:active{transform:translateY(1px)}
+  .btn.play{grid-column:1/-1;background:var(--accent);color:#1b1b1b;border-color:transparent}
+  .btn.wide{grid-column:1/-1}
+  .btn.on{background:var(--accent2);color:#04121f;border-color:transparent}
+
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px}
+  label span{color:var(--txt);font-weight:600;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent2);background:transparent}
+  select,input[type=text]{width:100%;background:var(--card2);color:var(--txt);border:1px solid var(--line);
+    border-radius:10px;padding:9px;font-size:14px;font-family:inherit}
+  .fila{display:flex;gap:8px;margin-top:8px}
+  .fila input{flex:1;min-width:0}
+  .fila .btn{flex:0 0 auto;padding:9px 12px}
+  .btn.small{padding:8px 10px;font-size:12.5px}
+
+  .pats{display:flex;flex-wrap:wrap;gap:7px}
+  .pat{border:1px solid var(--line);background:var(--card2);color:var(--txt);border-radius:999px;
+    padding:7px 11px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:filter .12s}
+  .pat:hover{filter:brightness(1.2)}
+  .pat.sel{background:var(--accent);color:#1b1b1b;border-color:transparent;font-weight:700}
+  .note{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0 0}
+  .note code{background:var(--card2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:11.5px}
+
+  #spark{display:block;width:100%;height:52px;border-radius:9px;background:var(--card2);border:1px solid var(--line)}
+
+  .explica{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+  .explica .card p{margin:0 0 10px;font-size:13.5px;line-height:1.62;color:#c6d2e2}
+  .explica .card p:last-child{margin-bottom:0}
+  .explica .card p.note{margin:15px 0 0;font-size:12.5px;color:var(--muted)}
+  .explica b{color:var(--txt)}
+  .reglas{display:flex;flex-direction:column;gap:10px}
+  .regla{display:flex;align-items:center;gap:10px}
+  .regla .txt{font-size:12.5px;line-height:1.4;color:#c6d2e2}
+  .regla .txt b{display:block;font-size:12px;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+  .mini{display:grid;grid-template-columns:repeat(3,11px);grid-auto-rows:11px;gap:2px;flex:0 0 auto}
+  .mini i{border-radius:2px;background:rgba(140,170,210,.10)}
+  .mini i.v{background:var(--accent2);box-shadow:0 0 7px rgba(78,161,255,.55)}
+  .mini i.c{outline:1px dashed rgba(230,238,246,.45);outline-offset:1px}
+  .flecha{color:var(--muted);font-size:13px}
+  .uno{width:13px;height:13px;border-radius:3px;background:rgba(140,170,210,.10);flex:0 0 auto}
+  .uno.v{background:var(--accent2);box-shadow:0 0 8px rgba(78,161,255,.6)}
+  .glos{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px}
+  .glos li{font-size:13px;line-height:1.5;color:#c6d2e2}
+  .glos b{color:var(--txt)}
+  .glos code{background:var(--card2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:11.5px;color:var(--accent2)}
+
+  footer{margin-top:22px;color:var(--muted);font-size:12px;text-align:center;line-height:1.6}
+  footer a{color:var(--accent2);text-decoration:none}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="goo" color-interpolation-filters="sRGB">
+    <feGaussianBlur id="gooBlur" stdDeviation="3" result="b" />
+    <feColorMatrix in="b" type="matrix"
+      values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" />
+  </filter>
+</svg>
+
+<div class="wrap">
+  <header>
+    <div class="logo">🧬</div>
+    <div>
+      <h1>Juego de la Vida</h1>
+      <p class="sub">El autómata celular de John Conway: nace con 3 vecinas, sobrevive con 2 o 3.</p>
+    </div>
+  </header>
+
+  <div class="shell">
+    <section class="board">
+      <canvas id="board"></canvas>
+      <div class="scan"></div>
+      <div class="vignette"></div>
+      <div class="hud">
+        <div class="chip">gen <b id="mGen">0</b></div>
+        <div class="chip">población <b id="mPop">0</b></div>
+        <div class="chip">fps <b id="mFps">0</b></div>
+        <div class="chip state" id="mState">viva</div>
+      </div>
+      <div class="toast" id="toast"></div>
+      <div class="hint" id="hint">clic o arrastre para dibujar · rueda para acercar · <code>shift</code>+arrastre para mover · <code>espacio</code> pausa · <code>p</code> paso · <code>s</code> siembra · <code>c</code> limpiar · <code>ctrl+z</code> deshacer</div>
+    </section>
+
+    <aside class="panel">
+      <div class="card">
+        <h2>Control</h2>
+        <div class="grid2">
+          <button class="btn play" id="bPlay">⏸ Pausar</button>
+          <button class="btn" id="bStep">Paso</button>
+          <button class="btn" id="bSeed">Sembrar</button>
+          <button class="btn" id="bClear">Limpiar</button>
+          <button class="btn" id="bUndo">↶ Deshacer</button>
+          <button class="btn" id="bWrap">Bordes: ∞</button>
+          <button class="btn wide" id="bFit">Ver todo el mundo</button>
+        </div>
+        <label>Regla <span id="lRegla">B3/S23</span></label>
+        <select id="sRegla"></select>
+        <div class="fila">
+          <input type="text" id="iRegla" placeholder="regla propia, ej. B3/S23" />
+          <button class="btn small" id="bRegla">Usar</button>
+        </div>
+        <label>Velocidad <span id="lSpeed">12</span> gen/s</label>
+        <input type="range" id="rSpeed" min="1" max="60" value="12" />
+        <label>Tamaño de celda <span id="lCell">10</span> px</label>
+        <input type="range" id="rCell" min="4" max="30" value="10" />
+        <label>Densidad al sembrar <span id="lDens">32</span>%</label>
+        <input type="range" id="rDens" min="5" max="70" value="32" />
+      </div>
+
+      <div class="card">
+        <h2>Figuras</h2>
+        <div class="pats" id="pats"></div>
+        <p class="note">Elegí una figura y tocá el tablero para estamparla. Volvé a tocar la figura elegida para dibujar celda por celda.</p>
+        <label style="margin-top:12px">Simetría del pincel</label>
+        <select id="sSim">
+          <option value="1">sin espejo</option>
+          <option value="2">espejo vertical</option>
+          <option value="4">4 ejes</option>
+          <option value="8">8 ejes (caleidoscopio)</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <h2>Llevárselo</h2>
+        <div class="grid2">
+          <button class="btn" id="bLink">🔗 Enlace</button>
+          <button class="btn" id="bPng">🖼️ PNG</button>
+        </div>
+        <p class="note">El enlace guarda el dibujo, la regla y el estilo: se abre igual en otra máquina. El PNG es una foto del tablero como se ve ahora. Además, este tablero se guarda solo en este navegador: si volvés a entrar sin un enlace, seguís donde dejaste.</p>
+      </div>
+
+      <div class="card">
+        <h2>Sonido</h2>
+        <button class="btn wide" id="bSonido">🔈 Sonido generativo</button>
+        <label>Volumen <span id="lVol">35</span>%</label>
+        <input type="range" id="rVol" min="0" max="100" value="35" />
+        <p class="note">Cada nacimiento y muerte de células suena como una nota; la población general controla un fondo ambiente. Es el tablero componiendo su propia música, no una pista grabada.</p>
+      </div>
+
+      <div class="card">
+        <h2>Estilo</h2>
+        <label>Trazo</label>
+        <div class="pats" id="modos"></div>
+        <label style="margin-top:12px">Paleta</label>
+        <select id="sPal"></select>
+        <label>Brillo del halo <span id="lGlow">10</span></label>
+        <input type="range" id="rGlow" min="0" max="20" value="10" />
+        <div class="grid3">
+          <button class="btn on" id="bTrail">Estelas</button>
+          <button class="btn on" id="bGrid">Grilla</button>
+          <button class="btn on" id="bSmooth">Suave</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Población</h2>
+        <canvas id="spark"></canvas>
+        <p class="note">Cada barra es una generación. Los picos son explosiones de vida; la línea plana, un patrón estable u oscilante.</p>
+      </div>
+    </aside>
+  </div>
+
+  <section class="explica">
+    <div class="card">
+      <h2>Qué es esto</h2>
+      <p>El Juego de la Vida es un <b>juego de cero jugadores</b>: acomodás unas células al principio y no volvés a intervenir. De ahí en más todo lo que pasa lo deciden cuatro reglas que sólo miran las ocho casillas vecinas de cada célula. No hay puntaje, no hay rival y no hay final previsto.</p>
+      <p>Lo inventó el matemático británico <b>John Conway</b> en 1970, y lo pensó justamente así: reglas mínimas, ninguna instrucción sobre qué debería formarse.</p>
+      <p>De esas reglas locales, sin plan central, salen estructuras que nadie programó: bloques que se quedan quietos, figuras que laten, naves que se desplazan y hasta cañones que fabrican naves para siempre. Es el ejemplo de manual de <b>emergencia</b>: comportamiento complejo que aparece solo, de piezas tontas que se miran entre vecinas.</p>
+    </div>
+
+    <div class="card">
+      <h2>Las cuatro reglas</h2>
+      <div class="reglas" id="reglas"></div>
+      <p class="note">Todas las células cambian <b>a la vez</b>: cada generación se calcula mirando la anterior, nunca a medio actualizar. Esta es la regla <b>B3/S23</b> — nace con 3, sobrevive con 2 o 3 — pero en el panel podés cambiarla y el universo entero cambia con ella.</p>
+    </div>
+
+    <div class="card">
+      <h2>Qué mirar</h2>
+      <ul class="glos">
+        <li><b>Vidas quietas</b> — un bloque de 4 que se sostiene solo y no cambia nunca. El chip dice <code>quieta</code>.</li>
+        <li><b>Osciladores</b> — vuelven a su forma cada tantas generaciones: el pulsar cada 3, el pentadecatlón cada 15. El chip los cuenta: <code>oscila ×3</code>.</li>
+        <li><b>Naves</b> — el planeador se repite igual pero corrido una casilla en diagonal: se mueve. Por eso nunca figura como quieta.</li>
+        <li><b>Matusalenes</b> — la bellota son 7 células que en un tablero infinito tardan más de <b>5000</b> generaciones en asentarse. Acá, con el tablero dando la vuelta, choca consigo misma y la historia cambia.</li>
+        <li><b>Cañones</b> — el cañón de Gosper dispara un planeador cada 30 generaciones, sin agotarse: población que crece para siempre.</li>
+      </ul>
+      <p class="note">Con estas piezas se puede armar una computadora entera: todo lo que calcula una computadora lo calcula un tablero de la Vida lo bastante grande. Por eso no hay atajo para saber cómo termina un tablero — hay que dejarlo correr y mirar.</p>
+    </div>
+  </section>
+
+  <footer>
+    Reglas <b>B3/S23</b> — una celda muerta nace si tiene exactamente 3 vecinas vivas; una viva sobrevive con 2 o 3, y en cualquier otro caso muere.
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ---------- figuras ---------- */
+  const PATTERNS = {
+    planeador: ["#..", "..#", "###"],
+    nave: ["#..#.", "....#", "#...#", ".####"],
+    pulsar: [
+      "..###...###..", ".............", "#....#.#....#", "#....#.#....#",
+      "#....#.#....#", "..###...###..", ".............", "..###...###..",
+      "#....#.#....#", "#....#.#....#", "#....#.#....#", ".............",
+      "..###...###.."
+    ],
+    "pentadecatlón": ["..#....#..", "##.####.##", "..#....#.."],
+    bellota: [".#.....", "...#...", "##..###"],
+    "pentominó R": [".##", "##.", ".#."],
+    cañón: [
+      "........................#...........",
+      "......................#.#...........",
+      "............##......##............##",
+      "...........#...#....##............##",
+      "##........#.....#...##..............",
+      "##........#...#.##....#.#...........",
+      "..........#.....#.......#...........",
+      "...........#...#....................",
+      "............##......................"
+    ]
+  };
+  const parsePattern = rows => {
+    const out = [];
+    rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === "#") out.push([x, y]); }));
+    return { w: Math.max(...rows.map(r => r.length)), h: rows.length, cells: out };
+  };
+  const FIGURAS = Object.fromEntries(Object.entries(PATTERNS).map(([k, v]) => [k, parsePattern(v)]));
+
+  /* ---------- paletas ---------- */
+  const PALETAS = {
+    "Neón": { bg:"#050a13", grid:"rgba(120,160,220,.055)", trail:"#1d6fd0", stops:["#eafcff","#37e2ff","#4e6bff","#b44bff"] },
+    "Ámbar": { bg:"#0b0803", grid:"rgba(255,209,102,.06)",  trail:"#8a4b12", stops:["#fff6e0","#ffd166","#ff9f45","#e0452b"] },
+    "Clorofila": { bg:"#04100b", grid:"rgba(120,255,190,.055)", trail:"#0f7a52", stops:["#eaffef","#5cf2a0","#19c2a0","#0a6ea8"] },
+    "Magma": { bg:"#0d0407", grid:"rgba(255,120,150,.05)", trail:"#8c1030", stops:["#fff0f3","#ff6b8b","#e02060","#6b1560"] },
+    "Papel": { bg:"#0f1013", grid:"rgba(255,255,255,.05)", trail:"#3a3d45", stops:["#ffffff","#cfd4de","#8b93a3","#4e5666"] }
+  };
+
+  const RAMPA = 48;   // colores por edad
+  const NIVELES = 6;  // escalones de opacidad de las estelas
+  const CELDA_MIN = 4, CELDA_MAX = 30; // el mundo se define a CELDA_MIN: ahí entra entero en pantalla
+
+  /* ---------- reglas ---------- */
+  // notación B/S: con cuántas vecinas nace una casilla vacía (B) y con cuántas
+  // sobrevive una viva (S). Cambiar esto cambia el universo entero.
+  const REGLAS = {
+    "Conway": "B3/S23",
+    "HighLife": "B36/S23",
+    "Laberinto": "B3/S12345",
+    "Semillas": "B2/S",
+    "Día y noche": "B3678/S34678",
+    "Coral": "B3/S45678"
+  };
+  const parseRegla = txt => {
+    const [b, s] = txt.split("/"), nb = new Uint8Array(9), ns = new Uint8Array(9);
+    for (const c of b.slice(1)) nb[+c] = 1;
+    for (const c of s.slice(1)) ns[+c] = 1;
+    return { nb, ns, txt };
+  };
+
+  const hex2rgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  const rampFor = pal => {
+    // colores precalculados: de recién nacida a veterana
+    const stops = pal.stops.map(hex2rgb), n = RAMPA, ramp = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const t = (i / (n - 1)) * (stops.length - 1);
+      const a = stops[Math.floor(t)], b = stops[Math.min(stops.length - 1, Math.floor(t) + 1)], f = t - Math.floor(t);
+      ramp[i] = `rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`;
+    }
+    return ramp;
+  };
+
+  /* ---------- estado ---------- */
+  const $ = id => document.getElementById(id);
+  const canvas = $("board"), ctx = canvas.getContext("2d");
+  const layer = document.createElement("canvas"), lctx = layer.getContext("2d");
+  const glow = document.createElement("canvas"), gctx = glow.getContext("2d");
+  const spark = $("spark"), sctx = spark.getContext("2d");
+  const GLOW_SCALE = .3; // el halo se calcula en chico y se agranda: mucho más barato
+  const gooBlur = $("gooBlur");
+  lctx.filter = "url(#goo)";
+  const GOO = lctx.filter !== "none"; // no todos los navegadores aceptan filtros SVG en canvas
+  lctx.filter = "none";
+
+  const S = {
+    cols: 0, rows: 0, cell: 10, dpr: 1, dprCap: 2, w: 0, h: 0, panX: 0, panY: 0,
+    cur: null, next: null, age: null, heat: null, born: null, dying: null,
+    gen: 0, pop: 0, running: true, speed: 12, density: .32, sim: 1,
+    regla: parseRegla("B3/S23"), reglaNombre: "Conway",
+    wrap: true, trails: true, showGrid: true, glow: 10, modo: "pixel", suave: true,
+    pal: PALETAS["Neón"], ramp: rampFor(PALETAS["Neón"]), palNombre: "Neón",
+    figura: null, history: [], hashes: [], estado: "viva"
+  };
+
+  const idx = (x, y) => y * S.cols + x;
+
+  function allocate(cols, rows, keepFrom) {
+    const cur = new Uint8Array(cols * rows), age = new Uint8Array(cols * rows);
+    if (keepFrom) { // conserva lo que ya estaba dibujado al cambiar el zoom
+      const { cols: oc, rows: or, cur: oldCur, age: oldAge } = keepFrom;
+      const dx = ((cols - oc) / 2) | 0, dy = ((rows - or) / 2) | 0;
+      for (let y = 0; y < or; y++) for (let x = 0; x < oc; x++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+        cur[ny * cols + nx] = oldCur[y * oc + x];
+        age[ny * cols + nx] = oldAge[y * oc + x];
+      }
+    }
+    S.cols = cols; S.rows = rows;
+    S.cur = cur; S.age = age;
+    S.next = new Uint8Array(cols * rows);
+    S.heat = new Float32Array(cols * rows);
+    S.born = new Uint8Array(cols * rows);   // nacieron en el último paso
+    S.dying = new Uint8Array(cols * rows);  // murieron en el último paso
+    S.panX = (cols * S.cell - S.w) / 2;     // se empieza mirando el centro del mundo
+    S.panY = (rows * S.cell - S.h) / 2;
+    S.pop = cur.reduce((a, v) => a + v, 0);
+  }
+
+  // el mundo no cambia de tamaño con el zoom: se ve un pedazo más grande o más chico
+  function encuadrar() {
+    const anchoMundo = S.cols * S.cell, altoMundo = S.rows * S.cell;
+    S.panX = anchoMundo <= S.w ? (anchoMundo - S.w) / 2 : Math.min(Math.max(0, S.panX), anchoMundo - S.w);
+    S.panY = altoMundo <= S.h ? (altoMundo - S.h) / 2 : Math.min(Math.max(0, S.panY), altoMundo - S.h);
+  }
+
+  function zoom(z, mundoX, mundoY, pantallaX, pantallaY) {
+    S.cell = Math.min(CELDA_MAX, Math.max(CELDA_MIN, z));
+    S.panX = mundoX * S.cell - pantallaX;
+    S.panY = mundoY * S.cell - pantallaY;
+    encuadrar();
+    if (S.heat) S.heat.fill(0); // si no, al mover la vista aparecen estelas viejas
+    gooBlur.setAttribute("stdDeviation", (S.cell * .3 * S.dpr).toFixed(2));
+    rCell.value = Math.round(S.cell); $("lCell").textContent = Math.round(S.cell);
+  }
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    S.dpr = Math.min(S.dprCap, window.devicePixelRatio || 1);
+    S.w = rect.width; S.h = rect.height;
+    for (const c of [canvas, layer]) {
+      c.width = Math.round(rect.width * S.dpr);
+      c.height = Math.round(rect.height * S.dpr);
+    }
+    ctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+    lctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+    glow.width = Math.max(1, Math.round(rect.width * GLOW_SCALE));
+    glow.height = Math.max(1, Math.round(rect.height * GLOW_SCALE));
+    gooBlur.setAttribute("stdDeviation", (S.cell * .3 * S.dpr).toFixed(2));
+
+    const cols = Math.max(8, Math.floor(rect.width / CELDA_MIN));
+    const rows = Math.max(8, Math.floor(rect.height / CELDA_MIN));
+    if (cols !== S.cols || rows !== S.rows) {
+      allocate(cols, rows, S.cur ? { cols: S.cols, rows: S.rows, cur: S.cur, age: S.age } : null);
+    }
+    encuadrar();
+  }
+
+  /* ---------- simulación ---------- */
+  function step() {
+    const { cols, rows, cur, next, age, heat, wrap, born, dying, regla: R } = S;
+    let pop = 0;
+    // si el sonido está apagado no vale la pena ni muestrear: es el caso de la
+    // enorme mayoría de las corridas, y así no le cuesta nada a la simulación
+    const sonando = Audio_.estaActivo();
+    const nacimientos = [], muertes = [];
+    let contN = 0, contM = 0;
+    for (let y = 0; y < rows; y++) {
+      const yUp = y === 0 ? rows - 1 : y - 1, yDn = y === rows - 1 ? 0 : y + 1;
+      const bordeY = (y === 0 || y === rows - 1);
+      for (let x = 0; x < cols; x++) {
+        const xL = x === 0 ? cols - 1 : x - 1, xR = x === cols - 1 ? 0 : x + 1;
+        const borde = bordeY || x === 0 || x === cols - 1;
+        let n;
+        if (!wrap && borde) {
+          n = 0;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            if (!dx && !dy) continue;
+            const px = x + dx, py = y + dy;
+            if (px < 0 || py < 0 || px >= cols || py >= rows) continue;
+            n += cur[py * cols + px];
+          }
+        } else {
+          n = cur[yUp * cols + xL] + cur[yUp * cols + x] + cur[yUp * cols + xR]
+            + cur[y   * cols + xL]                        + cur[y   * cols + xR]
+            + cur[yDn * cols + xL] + cur[yDn * cols + x] + cur[yDn * cols + xR];
+        }
+        const i = y * cols + x, viva = cur[i];
+        const nace = viva ? R.ns[n] === 1 : R.nb[n] === 1;
+        next[i] = nace ? 1 : 0;
+        born[i] = nace && !viva ? 1 : 0;
+        dying[i] = !nace && viva ? 1 : 0;
+        if (nace) { age[i] = viva ? Math.min(255, age[i] + 1) : 1; heat[i] = 1; pop++; }
+        else age[i] = 0;
+        // muestreo por reservorio: sin acumular todas las posiciones, sólo unas
+        // pocas al azar por generación, así una siembra con miles de cambios no
+        // ahoga el audio ni el sonido se limita a mirar siempre la misma esquina
+        if (sonando) {
+          if (born[i]) {
+            contN++;
+            if (nacimientos.length < 3) nacimientos.push(x, y);
+            else { const j = (Math.random() * contN) | 0; if (j < 3) { nacimientos[j*2] = x; nacimientos[j*2+1] = y; } }
+          } else if (dying[i]) {
+            contM++;
+            if (muertes.length < 2) muertes.push(x, y);
+            else { const j = (Math.random() * contM) | 0; if (j < 2) { muertes[j*2] = x; muertes[j*2+1] = y; } }
+          }
+        }
+      }
+    }
+    S.cur = next; S.next = cur;
+    S.pop = pop; S.gen++;
+    registrar();
+    if (sonando) {
+      for (let k = 0; k < nacimientos.length; k += 2) Audio_.evento("nace", nacimientos[k], nacimientos[k+1]);
+      for (let k = 0; k < muertes.length; k += 2) Audio_.evento("muere", muertes[k], muertes[k+1]);
+      Audio_.actualizarPoblacion(pop, cols * rows);
+    }
+  }
+
+  function hashGrid() {
+    let h = 2166136261;
+    const cur = S.cur;
+    for (let i = 0; i < cur.length; i++) if (cur[i]) { h ^= i; h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+
+  function registrar() {
+    S.history.push(S.pop);
+    if (S.history.length > 200) S.history.shift();
+    S.hashes.push(hashGrid());
+    if (S.hashes.length > 40) S.hashes.shift();
+
+    // se busca el período: si las últimas p generaciones repiten a las p anteriores,
+    // el tablero está oscilando con ese período (p = 1 es un patrón inmóvil)
+    const H = S.hashes, n = H.length;
+    let periodo = 0;
+    for (let p = 1; p <= 15 && 2 * p <= n; p++) {
+      let igual = true;
+      for (let k = 0; k < p; k++) if (H[n - 1 - k] !== H[n - 1 - k - p]) { igual = false; break; }
+      if (igual) { periodo = p; break; }
+    }
+    if (S.pop === 0) S.estado = "extinta";
+    else if (periodo === 1) S.estado = "quieta";
+    else if (periodo) S.estado = "oscila ×" + periodo;
+    else S.estado = "viva";
+  }
+
+  function sembrar() {
+    const { cur, age, cols, rows } = S;
+    let pop = 0;
+    // ruido con grumos: más orgánico que un random plano
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const centro = 1 - Math.hypot((x / cols - .5) * 1.5, (y / rows - .5) * 1.5);
+      const v = Math.random() < S.density * (.45 + centro) ? 1 : 0;
+      cur[y * cols + x] = v; age[y * cols + x] = v; pop += v;
+    }
+    S.born.fill(0); S.dying.fill(0);
+    S.pop = pop; S.gen = 0; S.history = []; S.hashes = []; S.estado = "viva";
+  }
+
+  function limpiar() {
+    S.cur.fill(0); S.age.fill(0); S.heat.fill(0); S.born.fill(0); S.dying.fill(0);
+    S.pop = 0; S.gen = 0; S.history = []; S.hashes = []; S.estado = "extinta";
+  }
+
+  function estampar(fig, cx, cy) {
+    const { cols, rows, cur, age } = S;
+    const x0 = cx - (fig.w >> 1), y0 = cy - (fig.h >> 1);
+    for (const [dx, dy] of fig.cells) {
+      let x = x0 + dx, y = y0 + dy;
+      if (S.wrap) { x = ((x % cols) + cols) % cols; y = ((y % rows) + rows) % rows; }
+      else if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+      for (const [px, py] of simetricos(x, y)) {
+        const i = py * cols + px;
+        if (!cur[i]) S.pop++;
+        cur[i] = 1; age[i] = 1; S.heat[i] = 1;
+      }
+    }
+    S.estado = S.pop ? "viva" : "extinta";
+  }
+
+  /* ---------- dibujo ---------- */
+
+  // gotas pre-dibujadas para el modo orgánico: una por tramo de la rampa,
+  // así no hay que crear un degradado por celda y por cuadro
+  let _spr = null, _sprClave = "";
+  function gotas() {
+    const clave = S.cell + "|" + S.dpr + "|" + S.palNombre;
+    if (_sprClave === clave) return _spr;
+    const dCss = S.cell * 2.1, px = Math.max(8, Math.round(dCss * S.dpr)), img = [];
+    for (let k = 0; k < 12; k++) {
+      const col = S.ramp[Math.min(RAMPA - 1, k * 4)];
+      const c = document.createElement("canvas"); c.width = c.height = px;
+      const g = c.getContext("2d");
+      const grad = g.createRadialGradient(px / 2, px / 2, 0, px / 2, px / 2, px / 2);
+      grad.addColorStop(0, col);
+      grad.addColorStop(.38, col);
+      grad.addColorStop(1, col.replace("rgb(", "rgba(").replace(")", ",0)"));
+      g.fillStyle = grad; g.fillRect(0, 0, px, px);
+      img.push(c);
+    }
+    _spr = { img, d: dCss }; _sprClave = clave;
+    return _spr;
+  }
+
+  // en modo contorno sólo se dibujan los lados que dan al vacío: el borde de la isla
+  function bordes(p, x, y, px, py) {
+    const { cols, rows, cur, wrap, cell } = S;
+    const arr = y > 0 ? cur[(y - 1) * cols + x] : (wrap ? cur[(rows - 1) * cols + x] : 0);
+    const aba = y < rows - 1 ? cur[(y + 1) * cols + x] : (wrap ? cur[x] : 0);
+    const izq = x > 0 ? cur[y * cols + x - 1] : (wrap ? cur[y * cols + cols - 1] : 0);
+    const der = x < cols - 1 ? cur[y * cols + x + 1] : (wrap ? cur[y * cols] : 0);
+    if (!arr) { p.moveTo(px, py); p.lineTo(px + cell, py); }
+    if (!aba) { p.moveTo(px, py + cell); p.lineTo(px + cell, py + cell); }
+    if (!izq) { p.moveTo(px, py); p.lineTo(px, py + cell); }
+    if (!der) { p.moveTo(px + cell, py); p.lineTo(px + cell, py + cell); }
+  }
+
+  function render(dt) {
+    const { cols, rows, cell, cur, age, heat, ramp, born, dying } = S;
+    const modo = S.modo, organico = modo === "organico", contorno = modo === "contorno";
+    const decay = Math.pow(modo === "fosforo" ? .972 : .90, dt * 60);
+
+    // avance hacia la próxima generación: nacer y morir dejan de ser un salto
+    const f = S.suave && S.running ? Math.min(1, acc * S.speed) : 1;
+    const e = f * f * (3 - 2 * f);
+
+    // sólo se dibuja el pedazo de mundo que se está mirando
+    const ox = -S.panX, oy = -S.panY;
+    const vx0 = Math.max(0, Math.floor(S.panX / cell)), vy0 = Math.max(0, Math.floor(S.panY / cell));
+    const vx1 = Math.min(cols, Math.ceil((S.panX + S.w) / cell)), vy1 = Math.min(rows, Math.ceil((S.panY + S.h) / cell));
+
+    ctx.fillStyle = S.pal.bg;
+    ctx.fillRect(0, 0, S.w, S.h);
+
+    if (S.showGrid && cell >= 7) {
+      ctx.strokeStyle = S.pal.grid; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = vx0; x <= vx1; x++) {
+        const px = Math.round(ox + x * cell) + .5;
+        ctx.moveTo(px, Math.max(0, oy)); ctx.lineTo(px, Math.min(S.h, oy + rows * cell));
+      }
+      for (let y = vy0; y <= vy1; y++) {
+        const py = Math.round(oy + y * cell) + .5;
+        ctx.moveTo(Math.max(0, ox), py); ctx.lineTo(Math.min(S.w, ox + cols * cell), py);
+      }
+      ctx.stroke();
+    }
+
+    lctx.clearRect(0, 0, S.w, S.h);
+    const pad = cell >= 9 ? 1 : cell >= 6 ? .6 : .25;
+    const size = cell - pad * 2;
+    const radio = Math.min(size / 2, cell * .28);
+    const redondo = typeof Path2D.prototype.roundRect === "function" && cell >= 6;
+
+    // se agrupan las celdas por color (y las estelas por opacidad) para pintar
+    // un puñado de trazados en vez de miles de rectángulos sueltos. Las que
+    // nacen y las que mueren van aparte porque comparten una misma opacidad.
+    const vivas = new Array(RAMPA), nacen = new Array(RAMPA), estelas = new Array(NIVELES);
+    let mueren = null, relleno = null;
+    const spr = organico ? gotas() : null;
+
+    for (let y = vy0; y < vy1; y++) {
+      const fy = oy + y * cell, py = fy + pad;
+      for (let x = vx0; x < vx1; x++) {
+        const i = y * cols + x, fx = ox + x * cell, px = fx + pad;
+        if (cur[i]) {
+          const c = Math.min(RAMPA - 1, ((age[i] - 1) * (RAMPA - 1) / 22) | 0);
+          const nueva = S.suave && born[i];
+          const k = nueva ? .45 + .55 * e : 1;
+          if (organico) {
+            const d = spr.d * k;
+            lctx.globalAlpha = nueva ? e : 1;
+            lctx.drawImage(spr.img[(c / 4) | 0], fx + cell / 2 - d / 2, fy + cell / 2 - d / 2, d, d);
+          } else if (contorno) {
+            const b = nueva ? nacen : vivas;
+            bordes(b[c] || (b[c] = new Path2D()), x, y, fx, fy);
+            (relleno || (relleno = new Path2D())).rect(fx, fy, cell, cell);
+          } else {
+            const b = nueva ? nacen : vivas;
+            const s = size * k, o = pad + (size - s) / 2;
+            const p = b[c] || (b[c] = new Path2D());
+            if (redondo) p.roundRect(fx + o, fy + o, s, s, radio * k); else p.rect(fx + o, fy + o, s, s);
+          }
+          heat[i] = 1;
+        } else {
+          if (S.suave && dying[i] && e < 1) {
+            if (organico) {
+              const d = spr.d * (1 - .45 * e);
+              lctx.globalAlpha = (1 - e) * .8;
+              lctx.drawImage(spr.img[1], fx + cell / 2 - d / 2, fy + cell / 2 - d / 2, d, d);
+            } else if (!contorno) {
+              const s = size * (1 - .5 * e), o = pad + (size - s) / 2;
+              const p = mueren || (mueren = new Path2D());
+              if (redondo) p.roundRect(fx + o, fy + o, s, s, radio); else p.rect(fx + o, fy + o, s, s);
+            }
+          }
+          if (heat[i]) {
+            const h = heat[i] * decay;
+            heat[i] = h > .02 ? h : 0;
+            if (S.trails && h > .02) {
+              const n = Math.min(NIVELES - 1, (h * NIVELES) | 0);
+              (estelas[n] || (estelas[n] = new Path2D())).rect(px, py, size, size);
+            }
+          }
+        }
+      }
+    }
+    lctx.globalAlpha = 1;
+
+    if (S.trails && !organico) {
+      lctx.fillStyle = S.pal.trail;
+      for (let n = 0; n < NIVELES; n++) if (estelas[n]) {
+        lctx.globalAlpha = ((n + 1) / NIVELES) * .5;
+        lctx.fill(estelas[n]);
+      }
+      lctx.globalAlpha = 1;
+    }
+    if (mueren) { lctx.fillStyle = ramp[1]; lctx.globalAlpha = (1 - e) * .85; lctx.fill(mueren); lctx.globalAlpha = 1; }
+    if (relleno) { lctx.fillStyle = ramp[24]; lctx.globalAlpha = .1; lctx.fill(relleno); lctx.globalAlpha = 1; }
+
+    if (contorno) {
+      lctx.lineWidth = Math.max(1, cell * .16); lctx.lineCap = "round"; lctx.lineJoin = "round";
+      for (let c = 0; c < RAMPA; c++) if (vivas[c]) { lctx.strokeStyle = ramp[c]; lctx.stroke(vivas[c]); }
+      lctx.globalAlpha = e;
+      for (let c = 0; c < RAMPA; c++) if (nacen[c]) { lctx.strokeStyle = ramp[c]; lctx.stroke(nacen[c]); }
+      lctx.globalAlpha = 1;
+    } else if (!organico) {
+      for (let c = 0; c < RAMPA; c++) if (vivas[c]) { lctx.fillStyle = ramp[c]; lctx.fill(vivas[c]); }
+      lctx.globalAlpha = e;
+      for (let c = 0; c < RAMPA; c++) if (nacen[c]) { lctx.fillStyle = ramp[c]; lctx.fill(nacen[c]); }
+      lctx.globalAlpha = 1;
+    }
+
+    // halo: la capa desenfocada en miniatura y sumada por debajo del dibujo nítido
+    const halo = modo === "fosforo" ? S.glow * 1.5 : S.glow;
+    if (halo > 0) {
+      gctx.clearRect(0, 0, glow.width, glow.height);
+      gctx.filter = `blur(${(halo * .28).toFixed(1)}px)`;
+      gctx.drawImage(layer, 0, 0, glow.width, glow.height);
+      gctx.filter = "none";
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = Math.min(1, halo / 13);
+      ctx.drawImage(glow, 0, 0, S.w, S.h);
+      ctx.restore();
+    }
+    if (organico && GOO) {
+      // el filtro funde las gotas vecinas en una sola mancha: tejido, no cuadraditos
+      ctx.save(); ctx.filter = "url(#goo)"; ctx.drawImage(layer, 0, 0, S.w, S.h); ctx.restore();
+    } else {
+      ctx.drawImage(layer, 0, 0, S.w, S.h);
+    }
+
+    // figura elegida: previsualización bajo el cursor
+    if (S.figura && puntero.x >= 0) {
+      const fig = FIGURAS[S.figura];
+      ctx.save();
+      ctx.globalAlpha = .38; ctx.fillStyle = S.ramp[8];
+      for (const [dx, dy] of fig.cells) {
+        let x = puntero.x - (fig.w >> 1) + dx, y = puntero.y - (fig.h >> 1) + dy;
+        if (S.wrap) { x = ((x % cols) + cols) % cols; y = ((y % rows) + rows) % rows; }
+        ctx.fillRect(ox + x * cell + pad, oy + y * cell + pad, size, size);
+      }
+      ctx.restore();
+    }
+  }
+
+  function renderSpark() {
+    const r = spark.getBoundingClientRect();
+    if (!r.width) return;
+    spark.width = r.width * S.dpr; spark.height = r.height * S.dpr;
+    sctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+    sctx.clearRect(0, 0, r.width, r.height);
+    const hist = S.history;
+    if (hist.length < 2) return;
+    const max = Math.max(...hist, 1), n = hist.length, bw = r.width / n;
+    const g = sctx.createLinearGradient(0, 0, 0, r.height);
+    g.addColorStop(0, S.pal.stops[1]); g.addColorStop(1, S.pal.stops[3]);
+    sctx.fillStyle = g;
+    for (let i = 0; i < n; i++) {
+      const h = (hist[i] / max) * (r.height - 6);
+      sctx.fillRect(i * bw, r.height - h, Math.max(1, bw - .6), h);
+    }
+  }
+
+  /* ---------- bucle ---------- */
+  let last = performance.now(), acc = 0, fpsAcc = 0, fpsN = 0, fpsShown = 0, sparkT = 0, muestras = 0;
+  function loop(now) {
+    const dt = Math.min(.1, (now - last) / 1000);
+    last = now;
+
+    if (S.running) {
+      acc += dt;
+      const paso = 1 / S.speed;
+      let guardas = 0;
+      while (acc >= paso && guardas++ < 8) { step(); acc -= paso; }
+    }
+    render(dt);
+
+    fpsAcc += dt; fpsN++;
+    if (fpsAcc >= .5) {
+      fpsShown = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; muestras++;
+      // si la máquina no llega, se baja la resolución interna antes que la fluidez
+      if (muestras > 4 && fpsShown < 40 && S.dprCap > 1) { S.dprCap = 1; resize(); }
+    }
+    sparkT += dt;
+    if (sparkT > .25) { sparkT = 0; renderSpark(); }
+
+    $("mGen").textContent = S.gen;
+    $("mPop").textContent = S.pop;
+    $("mFps").textContent = fpsShown;
+    const st = $("mState");
+    st.textContent = S.estado;
+    st.classList.toggle("calm", S.estado !== "viva");
+
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- interacción ---------- */
+  const puntero = { x: -1, y: -1, down: false, pintar: 1, lastX: -1, lastY: -1 };
+
+  const celdaEn = ev => {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: Math.floor((ev.clientX - r.left + S.panX) / S.cell),
+      y: Math.floor((ev.clientY - r.top + S.panY) / S.cell)
+    };
+  };
+  const dentro = (x, y) => x >= 0 && y >= 0 && x < S.cols && y < S.rows;
+
+  // el pincel puede dibujar espejado: 2 ejes, 4 o los 8 de un caleidoscopio
+  function simetricos(x, y) {
+    const { cols, rows, sim } = S;
+    if (sim === 1) return [[x, y]];
+    const cx = (cols - 1) / 2, cy = (rows - 1) / 2, dx = x - cx, dy = y - cy;
+    const base = sim === 2 ? [[dx, dy], [-dx, dy]]
+      : sim === 4 ? [[dx, dy], [-dx, dy], [dx, -dy], [-dx, -dy]]
+      : [[dx, dy], [-dx, dy], [dx, -dy], [-dx, -dy], [dy, dx], [-dy, dx], [dy, -dx], [-dy, -dx]];
+    const out = [];
+    for (const [ax, ay] of base) {
+      const px = Math.round(cx + ax), py = Math.round(cy + ay);
+      if (px >= 0 && py >= 0 && px < cols && py < rows) out.push([px, py]);
+    }
+    return out;
+  }
+
+  function una(x, y, v) {
+    const i = idx(x, y);
+    if (S.cur[i] !== v) { S.pop += v ? 1 : -1; S.cur[i] = v; S.age[i] = v; if (v) S.heat[i] = 1; }
+  }
+
+  function pintar(x, y, v) {
+    if (!dentro(x, y)) return;
+    for (const [px, py] of simetricos(x, y)) una(px, py, v);
+    S.estado = S.pop ? "viva" : "extinta"; // dibujar con el tablero en pausa también cuenta
+  }
+
+  function linea(x0, y0, x1, y1, v) { // trazo continuo aunque el puntero salte
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    for (;;) {
+      pintar(x0, y0, v);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx) { err += dx; y0 += sy; }
+    }
+  }
+
+  // dedos o punteros activos, para distinguir dibujar (uno) de mover y acercar (dos)
+  const activos = new Map();
+  let paneo = null, pellizco = null;
+
+  const local = ev => {
+    const r = canvas.getBoundingClientRect();
+    return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  };
+
+  canvas.addEventListener("contextmenu", ev => ev.preventDefault());
+
+  canvas.addEventListener("wheel", ev => {
+    ev.preventDefault();
+    const { x: mx, y: my } = local(ev);
+    const factor = ev.deltaY < 0 ? 1.15 : 1 / 1.15;
+    zoom(S.cell * factor, (mx + S.panX) / S.cell, (my + S.panY) / S.cell, mx, my);
+  }, { passive: false });
+
+  canvas.addEventListener("pointerdown", ev => {
+    canvas.setPointerCapture(ev.pointerId);
+    $("hint").classList.add("oculto"); // ya sabe dibujar: fuera la ayuda
+    activos.set(ev.pointerId, local(ev));
+
+    if (activos.size === 2) { // dos dedos: se deja de dibujar y se empieza a mover
+      puntero.down = false;
+      const [a, b] = [...activos.values()];
+      pellizco = { dist: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, cell: S.cell };
+      return;
+    }
+    if (ev.button === 1 || ev.button === 2 || ev.shiftKey) { // mover la vista
+      paneo = { x: ev.clientX, y: ev.clientY, panX: S.panX, panY: S.panY };
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    const { x, y } = celdaEn(ev);
+    if (!dentro(x, y)) return;
+    guardarParaDeshacer();
+    if (S.figura) { estampar(FIGURAS[S.figura], x, y); return; }
+    puntero.down = true;
+    puntero.pintar = S.cur[idx(x, y)] ? 0 : 1;
+    puntero.lastX = x; puntero.lastY = y;
+    pintar(x, y, puntero.pintar);
+  });
+
+  canvas.addEventListener("pointermove", ev => {
+    if (activos.has(ev.pointerId)) activos.set(ev.pointerId, local(ev));
+
+    if (pellizco && activos.size >= 2) {
+      const [a, b] = [...activos.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      const nuevo = pellizco.cell * (dist / pellizco.dist);
+      zoom(nuevo, (pellizco.cx + S.panX) / S.cell, (pellizco.cy + S.panY) / S.cell, cx, cy);
+      return;
+    }
+    if (paneo) {
+      S.panX = paneo.panX - (ev.clientX - paneo.x);
+      S.panY = paneo.panY - (ev.clientY - paneo.y);
+      encuadrar(); S.heat.fill(0);
+      return;
+    }
+    const { x, y } = celdaEn(ev);
+    puntero.x = x; puntero.y = y;
+    if (!puntero.down) return;
+    if (dentro(x, y)) linea(puntero.lastX, puntero.lastY, x, y, puntero.pintar);
+    puntero.lastX = x; puntero.lastY = y;
+  });
+
+  const soltar = ev => {
+    if (ev) activos.delete(ev.pointerId);
+    if (activos.size < 2) pellizco = null;
+    puntero.down = false; paneo = null;
+    canvas.style.cursor = "";
+  };
+  canvas.addEventListener("pointerup", soltar);
+  canvas.addEventListener("pointercancel", soltar);
+  canvas.addEventListener("pointerleave", ev => { soltar(ev); puntero.x = -1; });
+
+  /* ---------- controles ---------- */
+  const bPlay = $("bPlay");
+  const pintarPlay = () => { bPlay.textContent = S.running ? "⏸ Pausar" : "▶ Seguir"; };
+  bPlay.onclick = () => { S.running = !S.running; pintarPlay(); };
+  $("bStep").onclick = () => { S.running = false; pintarPlay(); step(); };
+  $("bSeed").onclick = () => { guardarParaDeshacer(); sembrar(); };
+  $("bClear").onclick = () => { guardarParaDeshacer(); limpiar(); };
+  $("bUndo").onclick = deshacer;
+
+  const bWrap = $("bWrap");
+  bWrap.onclick = () => {
+    S.wrap = !S.wrap;
+    bWrap.textContent = S.wrap ? "Bordes: ∞" : "Bordes: muro";
+    bWrap.classList.toggle("on", !S.wrap);
+  };
+
+  const rSpeed = $("rSpeed"), rCell = $("rCell"), rDens = $("rDens"), rGlow = $("rGlow");
+  rSpeed.oninput = () => { S.speed = +rSpeed.value; $("lSpeed").textContent = rSpeed.value; };
+  rDens.oninput = () => { S.density = +rDens.value / 100; $("lDens").textContent = rDens.value; };
+  rGlow.oninput = () => { S.glow = +rGlow.value; $("lGlow").textContent = rGlow.value; };
+  // el zoom del deslizador entra por el centro de lo que se está mirando
+  rCell.oninput = () => zoom(+rCell.value, (S.w / 2 + S.panX) / S.cell, (S.h / 2 + S.panY) / S.cell, S.w / 2, S.h / 2);
+  $("bFit").onclick = () => zoom(CELDA_MIN, S.cols / 2, S.rows / 2, S.w / 2, S.h / 2);
+
+  const sRegla = $("sRegla");
+  for (const nombre of Object.keys(REGLAS)) sRegla.add(new Option(nombre, nombre));
+  sRegla.onchange = () => {
+    if (!REGLAS[sRegla.value]) return; // "Personalizada": ya está aplicada, nada que recalcular
+    S.reglaNombre = sRegla.value;
+    S.regla = parseRegla(REGLAS[sRegla.value]);
+    $("lRegla").textContent = S.regla.txt;
+  };
+  $("sSim").onchange = ev => { S.sim = +ev.target.value; };
+
+  // aplica cualquier notación B.../S..., sea una de las conocidas o una escrita a mano
+  function elegirReglaDesdeTexto(txt) {
+    if (!txt || !/^B[0-8]*\/S[0-8]*$/i.test(txt)) return false;
+    txt = txt.toUpperCase();
+    S.regla = parseRegla(txt);
+    const nombre = Object.keys(REGLAS).find(k => REGLAS[k] === txt);
+    if (nombre) { S.reglaNombre = nombre; sRegla.value = nombre; }
+    else {
+      S.reglaNombre = "Personalizada";
+      let op = [...sRegla.options].find(o => o.value === "Personalizada");
+      if (!op) { op = new Option("Personalizada", "Personalizada"); sRegla.add(op); }
+      sRegla.value = "Personalizada";
+    }
+    $("lRegla").textContent = txt;
+    return true;
+  }
+  const iRegla = $("iRegla");
+  function aplicarReglaPropia() {
+    if (!elegirReglaDesdeTexto(iRegla.value.trim())) aviso("Regla inválida: usá el formato B.../S...");
+    else aviso("Regla aplicada: " + S.regla.txt);
+  }
+  $("bRegla").onclick = aplicarReglaPropia;
+  iRegla.addEventListener("keydown", ev => { if (ev.key === "Enter") aplicarReglaPropia(); });
+
+  let toastT = null;
+  function aviso(txt) {
+    const t = $("toast");
+    t.textContent = txt; t.classList.add("ver");
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("ver"), 2200);
+  }
+
+  /* ---------- llevárselo ---------- */
+  const b36 = n => n.toString(36);
+
+  // base64 "url-safe" a mano: sin +, / ni = para no chocar con el hash de la URL
+  function b64uCodificar(bytes) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function b64uDecodificar(str) {
+    str = str.replace(/-/g, "+").replace(/_/g, "/");
+    while (str.length % 4) str += "=";
+    const bin = atob(str), out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  // recuadro mínimo que contiene todo lo dibujado, sin importar dónde esté la cámara
+  function recuadro() {
+    const { cols, rows, cur } = S;
+    let x0 = cols, y0 = rows, x1 = -1, y1 = -1;
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (cur[y * cols + x]) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    return x1 < 0 ? null : { x0, y0, x1, y1, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  }
+
+  // tiras de casillas iguales dentro del recuadro: comprime muy bien un dibujo
+  // hecho a mano (mucho vacío), pero un sembrado al azar casi no tiene tiras
+  // largas — para eso se compara contra un mapa de bits y se manda el más corto
+  function codificar() {
+    const { cols, cur } = S;
+    const r = recuadro();
+    if (!r) return null;
+    const { x0, y0, x1, y1, w, h } = r;
+    const tiras = [];
+    let valor = 0, largo = 0;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const v = cur[y * cols + x];
+      if (v === valor) largo++; else { tiras.push(b36(largo)); valor = v; largo = 1; }
+    }
+    tiras.push(b36(largo));
+    const rle = tiras.join("-");
+
+    const bits = new Uint8Array(Math.ceil((w * h) / 8));
+    let bi = 0;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      if (cur[y * cols + x]) bits[bi >> 3] |= 1 << (bi & 7);
+      bi++;
+    }
+    const mapa = b64uCodificar(bits);
+
+    const usarMapa = mapa.length < rle.length;
+    const tipo = usarMapa ? "b" : "r";
+    const payload = usarMapa ? mapa : rle;
+    // se guarda la notación B.../S... en sí, no el nombre: así una regla escrita
+    // a mano también viaja entera en el enlace, no sólo las seis de la lista
+    return `v2~${tipo}~${encodeURIComponent(S.regla.txt)}~${b36(w)}~${b36(h)}~${payload}`;
+  }
+
+  function colocarRLE(tirasStr, w, x0, y0) {
+    let pos = 0, valor = 0;
+    for (const tira of tirasStr.split("-")) {
+      const largo = parseInt(tira, 36);
+      if (!(largo >= 0)) return false;
+      if (valor) for (let k = 0; k < largo; k++) {
+        const x = x0 + ((pos + k) % w), y = y0 + (((pos + k) / w) | 0);
+        if (x < S.cols && y < S.rows) { const i = y * S.cols + x; S.cur[i] = 1; S.age[i] = 1; S.pop++; }
+      }
+      pos += largo; valor ^= 1;
+    }
+    return true;
+  }
+
+  function colocarMapa(b64, w, h, x0, y0) {
+    const bytes = b64uDecodificar(b64);
+    let bi = 0;
+    for (let ry = 0; ry < h; ry++) for (let rx = 0; rx < w; rx++) {
+      const bit = (bytes[bi >> 3] >> (bi & 7)) & 1; bi++;
+      if (bit) {
+        const x = x0 + rx, y = y0 + ry;
+        if (x < S.cols && y < S.rows) { const i = y * S.cols + x; S.cur[i] = 1; S.age[i] = 1; S.pop++; }
+      }
+    }
+    return true;
+  }
+
+  function elegirReglaTxt(nombre) {
+    if (REGLAS[nombre]) {
+      S.reglaNombre = nombre; S.regla = parseRegla(REGLAS[nombre]);
+      sRegla.value = nombre; $("lRegla").textContent = S.regla.txt;
+    }
+  }
+
+  function aplicar(txt) {
+    const p = txt.split("~");
+    if (p[0] === "v1" && p.length >= 5) {
+      elegirReglaTxt(decodeURIComponent(p[1]));
+      const w = parseInt(p[2], 36), h = parseInt(p[3], 36);
+      if (!(w > 0 && h > 0)) return false;
+      limpiar();
+      const x0 = Math.max(0, (S.cols - w) >> 1), y0 = Math.max(0, (S.rows - h) >> 1);
+      if (colocarRLE(p[4], w, x0, y0) === false) return false;
+      S.estado = S.pop ? "viva" : "extinta";
+      return true;
+    }
+    if (p[0] === "v2" && p.length >= 6) {
+      elegirReglaDesdeTexto(decodeURIComponent(p[2]));
+      const w = parseInt(p[3], 36), h = parseInt(p[4], 36);
+      if (!(w > 0 && h > 0)) return false;
+      limpiar();
+      const x0 = Math.max(0, (S.cols - w) >> 1), y0 = Math.max(0, (S.rows - h) >> 1);
+      const ok = p[1] === "b" ? colocarMapa(p[5], w, h, x0, y0) : colocarRLE(p[5], w, x0, y0);
+      if (ok === false) return false;
+      S.estado = S.pop ? "viva" : "extinta";
+      return true;
+    }
+    return false;
+  }
+
+  $("bLink").onclick = async () => {
+    const t = codificar();
+    if (!t) return aviso("El tablero está vacío");
+    const hash = `t=${t}&e=${S.modo},${encodeURIComponent(S.palNombre)}`;
+    if (hash.length > 30000) return aviso("El dibujo es muy grande para un enlace");
+    location.hash = hash;
+    const url = location.href;
+    try { await navigator.clipboard.writeText(url); aviso("Enlace copiado"); }
+    catch { aviso("Enlace listo en la barra de direcciones"); }
+  };
+
+  // publicada dentro de un visor que no deja descargar sola, la página pide permiso;
+  // abierta como archivo o desde el sitio, baja directo
+  let guardador = null;
+  if (window.claude && window.claude.use) {
+    window.claude.use("downloads").then(d => { guardador = d; }).catch(() => {});
+  }
+
+  $("bPng").onclick = () => canvas.toBlob(async blob => {
+    const nombre = `vida-gen${S.gen}.png`;
+    if (guardador) {
+      try { await guardador.save({ filename: nombre, data: blob }); aviso("PNG guardado"); }
+      catch (err) { aviso(err && err.code === "declined" ? "Descarga cancelada" : "No se pudo guardar el PNG"); }
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    aviso("PNG guardado");
+  });
+
+  const bTrail = $("bTrail"), bGrid = $("bGrid"), bSmooth = $("bSmooth");
+  bTrail.onclick = () => { S.trails = !S.trails; bTrail.classList.toggle("on", S.trails); if (!S.trails) S.heat.fill(0); };
+  bGrid.onclick = () => { S.showGrid = !S.showGrid; bGrid.classList.toggle("on", S.showGrid); };
+  bSmooth.onclick = () => { S.suave = !S.suave; bSmooth.classList.toggle("on", S.suave); };
+
+  const sPal = $("sPal");
+  for (const nombre of Object.keys(PALETAS)) sPal.add(new Option(nombre, nombre));
+  const elegirPaleta = nombre => {
+    S.palNombre = nombre; S.pal = PALETAS[nombre]; S.ramp = rampFor(S.pal);
+    sPal.value = nombre; renderSpark();
+  };
+  sPal.onchange = () => elegirPaleta(sPal.value);
+
+  const MODOS = { pixel: "Píxel", organico: "Orgánico", contorno: "Contorno", fosforo: "Fósforo" };
+  const modos = $("modos"), tablero = document.querySelector(".board");
+  const elegirModo = id => {
+    S.modo = id;
+    [...modos.children].forEach(c => c.classList.toggle("sel", c.dataset.modo === id));
+    tablero.classList.toggle("crt", id === "fosforo");
+    if (id !== "fosforo" && S.heat) S.heat.fill(0); // que no quede la persistencia larga del fósforo
+  };
+  for (const [id, nombre] of Object.entries(MODOS)) {
+    const b = document.createElement("button");
+    b.className = "pat" + (id === S.modo ? " sel" : ""); b.textContent = nombre; b.dataset.modo = id;
+    b.onclick = () => elegirModo(id);
+    modos.appendChild(b);
+  }
+
+  const pats = $("pats");
+  for (const nombre of Object.keys(FIGURAS)) {
+    const b = document.createElement("button");
+    b.className = "pat"; b.textContent = nombre;
+    b.onclick = () => {
+      S.figura = S.figura === nombre ? null : nombre;
+      [...pats.children].forEach(c => c.classList.toggle("sel", c.textContent === S.figura));
+    };
+    pats.appendChild(b);
+  }
+
+  // diagramas de las reglas: vecindario de 3×3 (la casilla en cuestión, punteada)
+  // y a la derecha en qué queda esa casilla en la generación siguiente
+  const DIAGRAMAS = [
+    ["Soledad", "Viva con menos de 2 vecinas: muere de aislamiento.", [".#.", ".#.", "..."], 0],
+    ["Supervivencia", "Viva con 2 o 3 vecinas: sigue viva.", ["#.#", ".#.", "..."], 1],
+    ["Superpoblación", "Viva con 4 o más vecinas: muere ahogada.", ["###", ".#.", ".#."], 0],
+    ["Nacimiento", "Vacía con exactamente 3 vecinas: nace una célula.", ["#.#", "...", ".#."], 1]
+  ];
+  for (const [nombre, texto, filas, sale] of DIAGRAMAS) {
+    const fila = document.createElement("div"); fila.className = "regla";
+    const mini = document.createElement("div"); mini.className = "mini";
+    filas.forEach((f, y) => [...f].forEach((ch, x) => {
+      const c = document.createElement("i");
+      if (ch === "#") c.classList.add("v");
+      if (x === 1 && y === 1) c.classList.add("c");
+      mini.appendChild(c);
+    }));
+    const flecha = document.createElement("span"); flecha.className = "flecha"; flecha.textContent = "→";
+    const uno = document.createElement("i"); uno.className = sale ? "uno v" : "uno";
+    const txt = document.createElement("div"); txt.className = "txt";
+    const b = document.createElement("b"); b.textContent = nombre;
+    txt.append(b, document.createTextNode(texto));
+    fila.append(mini, flecha, uno, txt);
+    $("reglas").appendChild(fila);
+  }
+
+  addEventListener("keydown", ev => {
+    const foco = ev.target;
+    if (foco && foco.matches && foco.matches("input,select,button")) return;
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); deshacer(); return; }
+    const k = ev.key.toLowerCase();
+    if (k === " ") { ev.preventDefault(); S.running = !S.running; pintarPlay(); }
+    else if (k === "p") { S.running = false; pintarPlay(); step(); }
+    else if (k === "s") { guardarParaDeshacer(); sembrar(); }
+    else if (k === "c") { guardarParaDeshacer(); limpiar(); }
+  });
+
+  /* ---------- deshacer ---------- */
+  // una foto del tablero antes de cada acción que lo cambia; alcanza con
+  // clonar los typed arrays, que para un tablero de este tamaño es instantáneo
+  const DESHACER_MAX = 20;
+  const pilaDeshacer = [];
+  function guardarParaDeshacer() {
+    pilaDeshacer.push({ cur: S.cur.slice(), age: S.age.slice(), gen: S.gen, pop: S.pop, estado: S.estado });
+    if (pilaDeshacer.length > DESHACER_MAX) pilaDeshacer.shift();
+  }
+  function deshacer() {
+    let prev = pilaDeshacer.pop();
+    while (prev && prev.cur.length !== S.cur.length) prev = pilaDeshacer.pop(); // el tamaño cambió (resize): se descarta
+    if (!prev) { aviso("Nada para deshacer"); return; }
+    S.cur.set(prev.cur); S.age.set(prev.age);
+    S.gen = prev.gen; S.pop = prev.pop; S.estado = prev.estado;
+    S.heat.fill(0); S.born.fill(0); S.dying.fill(0);
+    aviso("Deshecho");
+  }
+
+  /* ---------- guardado automático ---------- */
+  // se guarda solo (sin enlace) para que refrescar la página no borre el dibujo;
+  // si la página se abrió con un enlace, ese enlace manda y no se toca lo guardado
+  const CLAVE_GUARDADO = "vida-conway-guardado-v1";
+  function guardarLocal() {
+    try {
+      const t = codificar();
+      if (!t) { localStorage.removeItem(CLAVE_GUARDADO); return; }
+      localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ t, modo: S.modo, pal: S.palNombre, wrap: S.wrap }));
+    } catch { /* almacenamiento lleno o bloqueado: seguimos sin guardar */ }
+  }
+  function cargarLocal() {
+    try {
+      const crudo = localStorage.getItem(CLAVE_GUARDADO);
+      if (!crudo) return false;
+      const g = JSON.parse(crudo);
+      if (!aplicar(g.t || "")) return false;
+      if (MODOS[g.modo]) elegirModo(g.modo);
+      if (PALETAS[g.pal]) elegirPaleta(g.pal);
+      if (typeof g.wrap === "boolean" && g.wrap !== S.wrap) bWrap.onclick();
+      return true;
+    } catch { return false; }
+  }
+  setInterval(guardarLocal, 4000);
+  addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") guardarLocal(); });
+  addEventListener("pagehide", guardarLocal);
+
+  /* ---------- sonido generativo ---------- */
+  // no es una pista grabada: cada nacimiento/muerte de células dispara una nota
+  // corta dentro de una escala pentatónica (así nunca suena disonante por más
+  // "al azar" que sea la elección de notas) y la población general controla
+  // el volumen de un zumbido grave de fondo, como un termómetro de actividad
+  const Audio_ = (() => {
+    let ctx = null, master = null, drone = null, droneGain = null, activo = false;
+    const PENTATONICA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31, 33];
+    const BASE = 220; // La3
+    const nota = i => BASE * Math.pow(2, PENTATONICA[((i % PENTATONICA.length) + PENTATONICA.length) % PENTATONICA.length] / 12);
+
+    function iniciar() {
+      if (ctx) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ctx = new AC();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      master = ctx.createGain(); master.gain.value = S.volumen; master.connect(ctx.destination);
+      drone = ctx.createOscillator(); drone.type = "sine"; drone.frequency.value = BASE / 4;
+      droneGain = ctx.createGain(); droneGain.gain.value = 0;
+      drone.connect(droneGain); droneGain.connect(master); drone.start();
+    }
+    function pulso(freq, vol, dur, pan) {
+      if (!ctx) return;
+      const osc = ctx.createOscillator(), g = ctx.createGain(), p = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      osc.type = "triangle"; osc.frequency.value = freq;
+      const t0 = ctx.currentTime;
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(vol, t0 + .012);
+      g.gain.exponentialRampToValueAtTime(.0008, t0 + dur);
+      osc.connect(g);
+      if (p) { p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p); p.connect(master); }
+      else g.connect(master);
+      osc.start(t0); osc.stop(t0 + dur + .05);
+    }
+    let ultimo = 0;
+    function evento(tipo, x, y) {
+      if (!activo || !ctx) return;
+      const ahora = ctx.currentTime;
+      if (ahora - ultimo < .02) return; // como mucho ~50 notas/seg, para no saturar
+      ultimo = ahora;
+      const pan = S.cols ? (x / S.cols) * 2 - 1 : 0;
+      if (tipo === "nace") pulso(nota(x - y), .09, .5, pan);
+      else pulso(nota(x - y) / 2, .05, .35, pan);
+    }
+    function actualizarPoblacion(pop, total) {
+      if (!activo || !droneGain) return;
+      const nivel = total ? Math.min(1, (pop / total) * 6) : 0;
+      droneGain.gain.linearRampToValueAtTime(nivel * .06, ctx.currentTime + .3);
+    }
+    function volumen(v) { S.volumen = v; if (master) master.gain.linearRampToValueAtTime(v, (ctx?.currentTime || 0) + .1); }
+    function alternar() {
+      activo = !activo;
+      if (activo) { iniciar(); if (ctx.state === "suspended") ctx.resume().catch(() => {}); }
+      else if (droneGain) droneGain.gain.linearRampToValueAtTime(0, (ctx?.currentTime || 0) + .2);
+      return activo;
+    }
+    return { evento, actualizarPoblacion, volumen, alternar, estaActivo: () => activo };
+  })();
+  S.volumen = .35;
+
+  const bSonido = $("bSonido");
+  bSonido.onclick = () => {
+    const on = Audio_.alternar();
+    bSonido.classList.toggle("on", on);
+    bSonido.textContent = on ? "🔊 Sonido generativo" : "🔈 Sonido generativo";
+  };
+  const rVol = $("rVol");
+  rVol.oninput = () => { const v = +rVol.value / 100; Audio_.volumen(v); $("lVol").textContent = rVol.value; };
+  Audio_.volumen(S.volumen);
+
+  /* ---------- arranque ---------- */
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  // si vino con un tablero en el enlace, se abre ese (manda por sobre lo guardado);
+  // si no, se retoma lo guardado en este navegador; si tampoco hay, siembra al azar
+  let cargado = false;
+  if (location.hash.length > 3) {
+    const q = new URLSearchParams(location.hash.slice(1));
+    try { cargado = aplicar(q.get("t") || ""); } catch { cargado = false; }
+    const estilo = (q.get("e") || "").split(",");
+    if (MODOS[estilo[0]]) elegirModo(estilo[0]);
+    if (PALETAS[estilo[1]]) elegirPaleta(estilo[1]);
+  }
+  if (!cargado) { try { cargado = cargarLocal(); } catch { cargado = false; } }
+  if (!cargado) sembrar();
+  requestAnimationFrame(t => { last = t; loop(t); });
+})();
+</script>
+</body>
+</html>
