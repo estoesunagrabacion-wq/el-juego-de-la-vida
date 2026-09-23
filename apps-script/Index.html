@@ -504,7 +504,7 @@
     <footer class="pie">
       <div class="pie-nombre">Héctor Tito Delgado</div>
       <div class="pie-dir">Paraguay 439 · (1057) CABA</div>
-      <div class="pie-ver">versión 13</div>
+      <div class="pie-ver">versión 14</div>
     </footer>
   </div>
 
@@ -848,12 +848,51 @@
     function cerrarMl() { document.getElementById('mlModal').classList.remove('abierto'); }
     function fondoMlModal(e) { if (e.target === document.getElementById('mlModal')) { cerrarMl(); } }
 
-    // Extrae los títulos de un archivo (ArrayBuffer) leído con SheetJS.
-    function titulosDeArchivo(buffer) {
-      var wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
-      var ws = wb.Sheets[wb.SheetNames[0]];
-      var filas = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
-      if (!filas.length) { return []; }
+    // Mensajes de la ventana de ML que NO desaparecen (para poder leerlos).
+    function mlMsg(texto, esError) {
+      var el = document.getElementById('mlMsg');
+      el.textContent = texto;
+      el.style.color = esError ? '#d98b78' : 'var(--gold-dim)';
+    }
+
+    // Parser de CSV simple (respaldo si el lector de Excel no cargó).
+    function parseCSVsimple(text) {
+      var lineas = text.split(/\r\n|\n|\r/);
+      var delim = ',';
+      if (lineas.length) {
+        var h = lineas[0];
+        if (h.indexOf(';') > -1 && (h.indexOf(',') === -1 || h.split(';').length > h.split(',').length)) { delim = ';'; }
+        else if (h.indexOf('\t') > -1) { delim = '\t'; }
+      }
+      var res = [];
+      for (var i = 0; i < lineas.length; i++) {
+        var l = lineas[i]; if (!l.length) { continue; }
+        var out = [], cur = '', q = false;
+        for (var j = 0; j < l.length; j++) {
+          var ch = l[j];
+          if (q) { if (ch === '"') { if (l[j + 1] === '"') { cur += '"'; j++; } else { q = false; } } else { cur += ch; } }
+          else { if (ch === '"') { q = true; } else if (ch === delim) { out.push(cur); cur = ''; } else { cur += ch; } }
+        }
+        out.push(cur); res.push(out);
+      }
+      return res;
+    }
+
+    // Extrae los títulos de un archivo (ArrayBuffer).
+    function titulosDeArchivo(buffer, name) {
+      var esCsv = /\.csv$/i.test(name || '');
+      var filas;
+      if (esCsv && typeof XLSX === 'undefined') {
+        filas = parseCSVsimple(new TextDecoder('utf-8').decode(new Uint8Array(buffer)));
+      } else {
+        if (typeof XLSX === 'undefined') { throw new Error('No cargó el lector de Excel (SheetJS). Necesitás internet o subí un CSV.'); }
+        var wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+        if (!wb || !wb.SheetNames || !wb.SheetNames.length) { throw new Error('El archivo no tiene hojas.'); }
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        if (!ws) { throw new Error('La primera hoja está vacía.'); }
+        filas = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
+      }
+      if (!filas || !filas.length) { return []; }
       var enc = (filas[0] || []).map(function (c) { return normalizarTxt(c); });
       var col = -1;
       for (var i = 0; i < enc.length; i++) {
@@ -873,37 +912,48 @@
     function subirML() {
       var input = document.getElementById('mlFile');
       var cuenta = document.getElementById('mlCuenta').value.trim();
-      if (!input.files || !input.files.length) { toast('Elegí un archivo primero.', 'error'); return; }
-      if (typeof XLSX === 'undefined') { toast('No se pudo cargar el lector de Excel. Probá de nuevo con internet, o subí un CSV.', 'error'); return; }
+      if (!input.files || !input.files.length) { mlMsg('Elegí un archivo primero.', true); return; }
 
       var btn = document.getElementById('mlSubir');
       btn.disabled = true; var txt = btn.textContent; btn.textContent = 'Procesando…';
+      mlMsg('Procesando…', false);
       var archivos = Array.prototype.slice.call(input.files);
       var titulos = [];
+      var errores = [];
       var idx = 0;
 
       function terminar() {
-        if (!titulos.length) { btn.disabled = false; btn.textContent = txt; toast('No encontré títulos en el/los archivo(s).', 'error'); return; }
+        if (!titulos.length) {
+          btn.disabled = false; btn.textContent = txt;
+          mlMsg(errores.length ? ('No se pudo leer: ' + errores[0]) : 'No encontré títulos en el/los archivo(s).', true);
+          return;
+        }
         google.script.run
           .withSuccessHandler(function (res) {
             btn.disabled = false; btn.textContent = txt;
-            document.getElementById('mlMsg').textContent = '✓ ' + res.agregadas + ' publicaciones' + (cuenta ? ' en «' + cuenta + '»' : '') + '. Total: ' + res.publicaciones + '.';
-            abrirML();
+            mlMsg('✓ ' + res.agregadas + ' publicaciones' + (cuenta ? ' en «' + cuenta + '»' : '') + '. Total: ' + res.publicaciones + '.', false);
+            document.getElementById('mlEstado').textContent = textoEstadoML({ publicaciones: res.publicaciones });
+            document.getElementById('mlFile').value = '';
             toast('Publicaciones actualizadas', 'ok');
           })
-          .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = txt; toast('Error al guardar: ' + err.message, 'error'); })
+          .withFailureHandler(function (err) {
+            btn.disabled = false; btn.textContent = txt;
+            mlMsg('Error al guardar: ' + err.message, true);
+          })
           .guardarPublicacionesML(titulos, cuenta);
       }
 
       function siguiente() {
         if (idx >= archivos.length) { terminar(); return; }
+        var f = archivos[idx];
         var reader = new FileReader();
         reader.onload = function (e) {
-          try { titulosDeArchivo(e.target.result).forEach(function (t) { titulos.push(t); }); } catch (err) { /* ignora ese archivo */ }
+          try { titulosDeArchivo(e.target.result, f.name).forEach(function (t) { titulos.push(t); }); }
+          catch (err) { errores.push((f.name || 'archivo') + ': ' + err.message); }
           idx++; siguiente();
         };
-        reader.onerror = function () { idx++; siguiente(); };
-        reader.readAsArrayBuffer(archivos[idx]);
+        reader.onerror = function () { errores.push((f.name || 'archivo') + ': no se pudo leer'); idx++; siguiente(); };
+        reader.readAsArrayBuffer(f);
       }
       siguiente();
     }
