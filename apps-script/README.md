@@ -131,14 +131,16 @@ precio de cada línea). En la planilla `Registro` se guarda **una fila por libro
 
 Podés avisarte para no vender dos veces lo mismo:
 
-1. Importá el Excel de tus publicaciones de Mercado Libre a una **pestaña nueva**
-   llamada **`MercadoLibre`** (en Google Sheets: *Archivo → Importar → Subir*, y
-   elegí "Insertar nueva(s) hoja(s)"; después renombrá la pestaña a `MercadoLibre`).
-   La app detecta sola la columna de **Título** de la publicación.
+1. En la pantalla principal, tocá **"📚 Publicaciones de Mercado Libre…"** y **subí el
+   Excel (.xlsx) o CSV** que exportás de Mercado Libre. La app lo lee en el navegador,
+   detecta sola la columna de **Título** y guarda la lista en la pestaña `MercadoLibre`
+   (la crea si no existe y reemplaza la anterior).
 2. Al guardar una venta, si algún ítem **se parece** a una publicación, aparece un
    aviso con las coincidencias, para que bajes la publicación. No bloquea la venta.
 
-Cuando actualizás tus publicaciones, reimportás el Excel a esa misma pestaña.
+Cuando actualizás tus publicaciones, volvés a subir el Excel desde ese mismo botón.
+(También podés, si preferís, importar el Excel a mano a una pestaña llamada
+`MercadoLibre`; la app lee igual.)
 
 ### Separación por día en la planilla
 

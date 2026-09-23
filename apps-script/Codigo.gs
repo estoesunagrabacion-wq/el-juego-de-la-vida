@@ -747,3 +747,34 @@ function buscarEnML_(items) {
 function estadoML() {
   return { publicaciones: leerTitulosML_().length, hay: !!getHojaML_() };
 }
+
+/**
+ * Reemplaza la lista de publicaciones de Mercado Libre con los títulos que la
+ * app extrajo del Excel/CSV subido desde el navegador. Crea la pestaña
+ * "MercadoLibre" si no existe.
+ * @param {string[]} titulos
+ * @return {Object} { publicaciones: n }
+ */
+function guardarPublicacionesML(titulos) {
+  titulos = titulos || [];
+  var ss = getPlanilla_();
+  var hoja = getHojaML_();
+  if (!hoja) { hoja = ss.insertSheet('MercadoLibre'); }
+
+  hoja.clearContents();
+  hoja.getRange(1, 1)
+    .setValue('Título')
+    .setFontWeight('bold').setBackground('#2b2b2b').setFontColor('#ffffff');
+  hoja.setFrozenRows(1);
+  hoja.setColumnWidth(1, 460);
+
+  var limpios = [];
+  for (var i = 0; i < titulos.length; i++) {
+    var t = (titulos[i] == null ? '' : titulos[i]).toString().trim();
+    if (t) { limpios.push([t]); }
+  }
+  if (limpios.length) {
+    hoja.getRange(2, 1, limpios.length, 1).setValues(limpios);
+  }
+  return { publicaciones: limpios.length };
+}

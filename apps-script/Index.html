@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg: #16120c;
@@ -154,6 +155,10 @@
 
     .ficha-form { overflow-y: auto; padding: 4px 20px 22px; }
     .ficha-form label:first-child { margin-top: 6px; }
+    #mlFile { display: block; width: 100%; box-sizing: border-box; color: var(--parchment); background: rgba(0,0,0,.18);
+      border: 1px dashed var(--line); border-radius: 3px; padding: 12px; font-family: var(--serif-text); margin: 6px 0 4px; }
+    #mlFile::file-selector-button { font-family: var(--serif-text); margin-right: 10px; cursor: pointer;
+      background: rgba(199,162,78,.14); color: var(--gold-bright); border: 1px solid var(--gold); border-radius: 3px; padding: 8px 12px; }
 
     .preview { font-size: .95rem; color: var(--gold); font-style: italic; margin-top: 7px; min-height: 1.2em; }
 
@@ -482,6 +487,7 @@
       </div>
       <button class="ver-detalle" onclick="abrirDetalle()">Ver detalle del día y del mes →</button>
       <button class="deshacer" onclick="pedirDeshacer()">↶ Deshacer último movimiento</button>
+      <button class="deshacer" onclick="abrirML()">📚 Publicaciones de Mercado Libre…</button>
     </div>
     </div><!-- /secMovimientos -->
 
@@ -498,7 +504,7 @@
     <footer class="pie">
       <div class="pie-nombre">Héctor Tito Delgado</div>
       <div class="pie-dir">Paraguay 439 · (1057) CABA</div>
-      <div class="pie-ver">versión 11</div>
+      <div class="pie-ver">versión 12</div>
     </footer>
   </div>
 
@@ -593,6 +599,23 @@
           <button type="button" data-medio="Otros" onclick="setMedioMov(this)">Otros</button>
         </div>
         <button class="guardar venta" id="movGuardar" onclick="guardarMov()">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subir publicaciones de Mercado Libre -->
+  <div id="mlModal" class="modal" onclick="fondoMlModal(event)">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">Publicaciones de Mercado Libre</div>
+        <button class="cerrar" onclick="cerrarMl()" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="ficha-form">
+        <p class="aviso-intro" id="mlEstado">…</p>
+        <p class="aviso-intro">Subí el Excel (.xlsx) o CSV que exportás de Mercado Libre. La app detecta sola la columna del título y reemplaza la lista anterior.</p>
+        <input type="file" id="mlFile" accept=".xlsx,.xls,.csv">
+        <button class="guardar venta" id="mlSubir" onclick="subirML()">Subir y actualizar</button>
+        <div class="hint" id="mlMsg"></div>
       </div>
     </div>
   </div>
@@ -793,6 +816,75 @@
     }
     function cerrarAviso() { document.getElementById('avisoML').classList.remove('abierto'); }
     function fondoAviso(e) { if (e.target === document.getElementById('avisoML')) { cerrarAviso(); } }
+
+    /* ── Subir publicaciones de Mercado Libre desde la app ── */
+    function normalizarTxt(s) {
+      s = (s == null ? '' : s).toString().toLowerCase();
+      if (s.normalize) { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+      return s.replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+
+    function abrirML() {
+      document.getElementById('mlModal').classList.add('abierto');
+      document.getElementById('mlMsg').textContent = '';
+      document.getElementById('mlFile').value = '';
+      document.getElementById('mlEstado').textContent = 'Cargando…';
+      google.script.run
+        .withSuccessHandler(function (e) {
+          document.getElementById('mlEstado').textContent = (e && e.publicaciones)
+            ? ('Hay ' + e.publicaciones + ' publicaciones cargadas.')
+            : 'Todavía no cargaste publicaciones.';
+        })
+        .withFailureHandler(function () { document.getElementById('mlEstado').textContent = ''; })
+        .estadoML();
+    }
+    function cerrarMl() { document.getElementById('mlModal').classList.remove('abierto'); }
+    function fondoMlModal(e) { if (e.target === document.getElementById('mlModal')) { cerrarMl(); } }
+
+    function subirML() {
+      var input = document.getElementById('mlFile');
+      if (!input.files || !input.files.length) { toast('Elegí un archivo primero.', 'error'); return; }
+      if (typeof XLSX === 'undefined') { toast('No se pudo cargar el lector de Excel. Probá de nuevo con internet, o usá un CSV.', 'error'); return; }
+      var btn = document.getElementById('mlSubir');
+      btn.disabled = true; var txt = btn.textContent; btn.textContent = 'Procesando…';
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var filas = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
+          if (!filas.length) { throw new Error('El archivo está vacío.'); }
+          var enc = (filas[0] || []).map(function (c) { return normalizarTxt(c); });
+          var col = -1;
+          for (var i = 0; i < enc.length; i++) {
+            var h = enc[i];
+            if (h.indexOf('titulo') !== -1 || h.indexOf('publicacion') !== -1 || h === 'nombre' || h.indexOf('articulo') !== -1) { col = i; break; }
+          }
+          if (col === -1) { col = 0; }   // sin encabezado reconocible: primera columna
+          var titulos = [];
+          for (var r = 1; r < filas.length; r++) {   // se asume fila 1 = encabezados
+            var row = filas[r] || [];
+            var t = (row[col] == null ? '' : row[col]).toString().trim();
+            if (t) { titulos.push(t); }
+          }
+          if (!titulos.length) { throw new Error('No encontré títulos en el archivo.'); }
+          google.script.run
+            .withSuccessHandler(function (res) {
+              btn.disabled = false; btn.textContent = txt;
+              document.getElementById('mlMsg').textContent = '✓ ' + res.publicaciones + ' publicaciones cargadas.';
+              document.getElementById('mlEstado').textContent = 'Hay ' + res.publicaciones + ' publicaciones cargadas.';
+              toast('Publicaciones actualizadas', 'ok');
+            })
+            .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = txt; toast('Error al guardar: ' + err.message, 'error'); })
+            .guardarPublicacionesML(titulos);
+        } catch (err) {
+          btn.disabled = false; btn.textContent = txt;
+          toast('No se pudo leer el archivo: ' + err.message, 'error');
+        }
+      };
+      reader.onerror = function () { btn.disabled = false; btn.textContent = txt; toast('No se pudo leer el archivo.', 'error'); };
+      reader.readAsArrayBuffer(input.files[0]);
+    }
 
     function bloqueResumen(titulo, d) {
       var html = '<div class="tit">' + titulo + '</div>';
@@ -1284,6 +1376,7 @@
       if (e.key !== 'Escape') { return; }
       if (document.getElementById('confirm').classList.contains('abierto')) { cerrarConfirm(); }
       else if (document.getElementById('avisoML').classList.contains('abierto')) { cerrarAviso(); }
+      else if (document.getElementById('mlModal').classList.contains('abierto')) { cerrarMl(); }
       else if (document.getElementById('movModal').classList.contains('abierto')) { cerrarMov(); }
       else if (document.getElementById('fichaModal').classList.contains('abierto')) { cerrarFicha(); }
       else if (document.getElementById('modal').classList.contains('abierto')) { cerrarDetalle(); }
