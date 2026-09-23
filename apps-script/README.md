@@ -113,6 +113,27 @@ fecha de alta automática), guardada en una pestaña nueva **`Clientes`**.
   quién avisarle cuando entra un libro que le interesa.
 - Es independiente de las ventas.
 
+### Ventas con varios ítems
+
+En una **venta** podés cargar **varias líneas**, una por libro, con **ítem +
+cantidad (por defecto 1) + precio unitario**. El **total se suma solo** (cantidad ×
+precio de cada línea). En la planilla `Registro` se guarda **una fila por libro**
+(comparten fecha, hora y medio de pago), con las columnas nuevas **Cantidad** y
+**Precio unit**. El gasto sigue siendo una sola línea (concepto + importe).
+
+### Cruce con Mercado Libre
+
+Podés avisarte para no vender dos veces lo mismo:
+
+1. Importá el Excel de tus publicaciones de Mercado Libre a una **pestaña nueva**
+   llamada **`MercadoLibre`** (en Google Sheets: *Archivo → Importar → Subir*, y
+   elegí "Insertar nueva(s) hoja(s)"; después renombrá la pestaña a `MercadoLibre`).
+   La app detecta sola la columna de **Título** de la publicación.
+2. Al guardar una venta, si algún ítem **se parece** a una publicación, aparece un
+   aviso con las coincidencias, para que bajes la publicación. No bloquea la venta.
+
+Cuando actualizás tus publicaciones, reimportás el Excel a esa misma pestaña.
+
 ### Separación por día en la planilla
 
 Cuando cambia el día, la app deja **una fila en blanco** en la pestaña `Registro`,

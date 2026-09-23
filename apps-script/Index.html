@@ -157,6 +157,35 @@
 
     .preview { font-size: .95rem; color: var(--gold); font-style: italic; margin-top: 7px; min-height: 1.2em; }
 
+    /* Líneas de la venta */
+    #lineas { display: flex; flex-direction: column; gap: 8px; }
+    .linea { display: grid; grid-template-columns: 1fr 64px 110px 34px; gap: 8px; align-items: center; }
+    .linea input { padding: 11px 10px; font-size: 1rem; margin: 0; }
+    .linea .l-cant { text-align: center; }
+    .l-del {
+      cursor: pointer; background: transparent; border: 1px solid var(--line-soft); color: var(--gold-dim);
+      border-radius: 3px; height: 40px; font-size: 1.1rem; line-height: 1;
+    }
+    .l-del:hover { color: var(--gasto); border-color: var(--gasto); }
+    .add-linea {
+      margin-top: 10px; cursor: pointer; background: transparent; border: 1px dashed var(--line);
+      color: var(--gold); border-radius: 3px; padding: 10px; width: 100%;
+      font-family: var(--serif-text); font-style: italic; font-size: .98rem;
+    }
+    .add-linea:hover { color: var(--gold-bright); border-color: var(--gold); }
+    .total-venta {
+      display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px;
+      padding-top: 12px; border-top: 1px solid var(--line-soft);
+      font-family: var(--serif-display); font-size: .82rem; letter-spacing: .18em; text-transform: uppercase; color: var(--gold);
+    }
+    .total-venta span { font-family: var(--serif-text); font-size: 1.45rem; letter-spacing: 0; text-transform: none; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+
+    /* Aviso de Mercado Libre */
+    .aviso-intro { color: var(--parchment); margin: 4px 0 14px; line-height: 1.5; }
+    .aviso-item { border: 1px solid var(--line-soft); border-radius: 3px; padding: 10px 12px; margin-bottom: 10px; }
+    .aviso-vend { color: var(--parchment); font-size: 1rem; }
+    .aviso-pub { color: var(--gold); font-size: .9rem; font-style: italic; margin-top: 4px; }
+
     /* Medios de pago */
     .medios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .medios button {
@@ -326,6 +355,7 @@
     .mov .meta { color: var(--gold-dim); font-size: .8rem; margin-top: 2px; }
     .mov .chip { font-family: var(--serif-display); font-size: .64rem; letter-spacing: .12em; text-transform: uppercase;
       border: 1px solid var(--line); border-radius: 2px; padding: 2px 6px; color: var(--gold); margin-left: 8px; }
+    .mov .cantx { color: var(--gold); font-size: .85rem; font-variant-numeric: tabular-nums; }
     .mov .monto { font-variant-numeric: tabular-nums; font-size: 1.05rem; font-weight: 600; white-space: nowrap; }
     .mov.ingreso .monto { color: #7fc79b; }
     .mov.egreso .monto { color: #d98b78; }
@@ -388,12 +418,22 @@
         <button id="btnGasto" onclick="setTipo('egreso')">Gasto</button>
       </div>
 
-      <label id="lblDetalle" for="detalle">Nombre del ítem</label>
-      <input type="text" id="detalle" autocomplete="off" placeholder="Ej: Rayuela, de Cortázar">
+      <!-- VENTA: una o varias líneas (ítem · cantidad · precio) -->
+      <div id="bloqueVenta">
+        <label>Ítems vendidos</label>
+        <div id="lineas"></div>
+        <button type="button" class="add-linea" onclick="agregarLinea()">＋ Agregar ítem</button>
+        <div class="total-venta">Total <span id="totalVenta">$ 0</span></div>
+      </div>
 
-      <label for="importe">Importe en pesos ($)</label>
-      <input type="number" id="importe" inputmode="decimal" min="0" step="0.01" placeholder="0" oninput="actualizarPreview()">
-      <div class="preview" id="previewImporte"></div>
+      <!-- GASTO: concepto + importe -->
+      <div id="bloqueGasto" style="display:none">
+        <label for="gConcepto">Concepto del gasto</label>
+        <input type="text" id="gConcepto" autocomplete="off" placeholder="Ej: Compra a cartonero, alquiler, luz">
+        <label for="gImporte">Importe en pesos ($)</label>
+        <input type="number" id="gImporte" inputmode="decimal" min="0" step="0.01" placeholder="0" oninput="previewGastoFn()">
+        <div class="preview" id="previewGasto"></div>
+      </div>
 
       <div id="bloqueMedio">
         <label id="lblMedio">¿Cómo se pagó? (cobro)</label>
@@ -439,7 +479,7 @@
     <footer class="pie">
       <div class="pie-nombre">Héctor Tito Delgado</div>
       <div class="pie-dir">Paraguay 439 · (1057) CABA</div>
-      <div class="pie-ver">versión 8</div>
+      <div class="pie-ver">versión 9</div>
     </footer>
   </div>
 
@@ -501,6 +541,17 @@
     </div>
   </div>
 
+  <!-- Aviso de Mercado Libre -->
+  <div id="avisoML" class="modal" onclick="fondoAviso(event)">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">⚠ Posible venta duplicada</div>
+        <button class="cerrar" onclick="cerrarAviso()" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="ficha-form" id="avisoMLcont"></div>
+    </div>
+  </div>
+
   <!-- Confirmación para eliminar -->
   <div id="confirm" class="confirm" onclick="fondoConfirm(event)">
     <div class="confirm-box">
@@ -537,17 +588,54 @@
       if (el) { el.textContent = frase.repeat(30); }
     })();
 
+    // Arranca con una línea de venta vacía.
+    agregarLinea();
+
     function setTipo(t) {
       tipo = t;
       var esVenta = (t === 'ingreso');
       document.getElementById('btnVenta').className = esVenta ? 'on-venta' : '';
       document.getElementById('btnGasto').className = esVenta ? '' : 'on-gasto';
-      document.getElementById('lblDetalle').textContent = esVenta ? 'Nombre del ítem' : 'Concepto del gasto';
-      document.getElementById('detalle').placeholder = esVenta ? 'Ej: Rayuela, de Cortázar' : 'Ej: Compra a cartonero, alquiler, luz';
+      document.getElementById('bloqueVenta').style.display = esVenta ? 'block' : 'none';
+      document.getElementById('bloqueGasto').style.display = esVenta ? 'none' : 'block';
       document.getElementById('lblMedio').textContent = esVenta ? '¿Cómo se pagó? (cobro)' : '¿Cómo se pagó? (egreso)';
       var g = document.getElementById('guardar');
       g.textContent = esVenta ? 'Guardar venta' : 'Guardar gasto';
       g.className = 'guardar ' + (esVenta ? 'venta' : 'gasto');
+    }
+
+    /* ── Líneas de la venta ── */
+    function agregarLinea(foco) {
+      var cont = document.getElementById('lineas');
+      var div = document.createElement('div');
+      div.className = 'linea';
+      div.innerHTML =
+        '<input type="text" class="l-item" autocomplete="off" placeholder="Ítem (ej: Rayuela, Cortázar)" oninput="calcTotal()">' +
+        '<input type="number" class="l-cant" min="1" step="1" inputmode="numeric" value="1" title="Cantidad" oninput="calcTotal()">' +
+        '<input type="number" class="l-precio" min="0" step="0.01" inputmode="decimal" placeholder="Precio" title="Precio unitario" oninput="calcTotal()">' +
+        '<button type="button" class="l-del" title="Quitar" onclick="quitarLinea(this)">×</button>';
+      cont.appendChild(div);
+      if (foco) { div.querySelector('.l-item').focus(); }
+      calcTotal();
+    }
+
+    function quitarLinea(btn) {
+      var div = btn.parentNode;
+      div.parentNode.removeChild(div);
+      if (!document.querySelectorAll('#lineas .linea').length) { agregarLinea(); }
+      calcTotal();
+    }
+
+    function calcTotal() {
+      var total = 0;
+      var nodos = document.querySelectorAll('#lineas .linea');
+      for (var i = 0; i < nodos.length; i++) {
+        var cant = parseFloat(nodos[i].querySelector('.l-cant').value) || 0;
+        if (cant <= 0) { cant = 1; }
+        var precio = parseFloat(nodos[i].querySelector('.l-precio').value) || 0;
+        total += cant * precio;
+      }
+      document.getElementById('totalVenta').textContent = pesos(total);
     }
 
     function setMedio(btn) {
@@ -565,9 +653,9 @@
       if (!abierto) { document.getElementById('usd').value = ''; }
     }
 
-    function actualizarPreview() {
-      var v = parseFloat(document.getElementById('importe').value);
-      document.getElementById('previewImporte').textContent = (v > 0) ? pesos(v) : '';
+    function previewGastoFn() {
+      var v = parseFloat(document.getElementById('gImporte').value);
+      document.getElementById('previewGasto').textContent = (v > 0) ? pesos(v) : '';
     }
 
     function toast(msg, clase) {
@@ -578,14 +666,29 @@
     }
 
     function guardar() {
-      var detalle = document.getElementById('detalle').value.trim();
-      var importe = parseFloat(document.getElementById('importe').value) || 0;
       var usd = parseFloat(document.getElementById('usd').value) || 0;
+      var datos;
 
-      if (!detalle) { toast('Escribí el ' + (tipo === 'ingreso' ? 'nombre del ítem' : 'concepto') + '.', 'error'); return; }
-      if (importe <= 0 && usd <= 0) { toast('Ingresá un importe mayor a cero.', 'error'); return; }
-
-      var datos = { tipo: tipo, detalle: detalle, importe: importe, medio: medio, usd: usd };
+      if (tipo === 'ingreso') {
+        var lineas = [];
+        var nodos = document.querySelectorAll('#lineas .linea');
+        for (var i = 0; i < nodos.length; i++) {
+          var item = nodos[i].querySelector('.l-item').value.trim();
+          var cant = parseFloat(nodos[i].querySelector('.l-cant').value) || 1;
+          var precio = parseFloat(nodos[i].querySelector('.l-precio').value) || 0;
+          if (!item && precio <= 0) { continue; }
+          if (!item) { toast('Falta el nombre de un ítem.', 'error'); return; }
+          lineas.push({ item: item, cantidad: cant, precio: precio });
+        }
+        if (!lineas.length && usd <= 0) { toast('Cargá al menos un ítem con precio.', 'error'); return; }
+        datos = { tipo: 'ingreso', medio: medio, usd: usd, lineas: lineas };
+      } else {
+        var concepto = document.getElementById('gConcepto').value.trim();
+        var importe = parseFloat(document.getElementById('gImporte').value) || 0;
+        if (!concepto) { toast('Escribí el concepto.', 'error'); return; }
+        if (importe <= 0 && usd <= 0) { toast('Ingresá un importe mayor a cero.', 'error'); return; }
+        datos = { tipo: 'egreso', medio: medio, usd: usd, detalle: concepto, importe: importe };
+      }
 
       var btn = document.getElementById('guardar');
       btn.disabled = true;
@@ -597,8 +700,9 @@
           btn.disabled = false;
           btn.textContent = textoOriginal;
           limpiar();
-          renderResumen(res);
+          renderResumen(res.resumen);
           toast('✓ ' + (tipo === 'ingreso' ? 'Venta' : 'Gasto') + ' guardado', 'ok');
+          if (res.ml && res.ml.length) { avisarML(res.ml); }
         })
         .withFailureHandler(function (err) {
           btn.disabled = false;
@@ -609,14 +713,30 @@
     }
 
     function limpiar() {
-      document.getElementById('detalle').value = '';
-      document.getElementById('importe').value = '';
+      document.getElementById('lineas').innerHTML = '';
+      agregarLinea();
+      document.getElementById('gConcepto').value = '';
+      document.getElementById('gImporte').value = '';
+      document.getElementById('previewGasto').textContent = '';
       document.getElementById('usd').value = '';
-      document.getElementById('previewImporte').textContent = '';
       var box = document.getElementById('usdBox');
       if (box.classList.contains('abierto')) { toggleUsd(); }
-      document.getElementById('detalle').focus();
+      if (tipo === 'ingreso') { document.querySelector('#lineas .l-item').focus(); }
+      else { document.getElementById('gConcepto').focus(); }
     }
+
+    /* Aviso: ítems vendidos que se parecen a publicaciones de Mercado Libre. */
+    function avisarML(matches) {
+      var html = '<p class="aviso-intro">Estos ítems que vendiste se parecen a publicaciones en Mercado Libre. Revisá si tenés que bajar la publicación:</p>';
+      matches.forEach(function (m) {
+        html += '<div class="aviso-item"><div class="aviso-vend">Vendiste: <b>' + escapar(m.item) + '</b></div>';
+        html += '<div class="aviso-pub">Publicado: ' + m.titulos.map(function (t) { return escapar(t); }).join('<br>') + '</div></div>';
+      });
+      document.getElementById('avisoMLcont').innerHTML = html;
+      document.getElementById('avisoML').classList.add('abierto');
+    }
+    function cerrarAviso() { document.getElementById('avisoML').classList.remove('abierto'); }
+    function fondoAviso(e) { if (e.target === document.getElementById('avisoML')) { cerrarAviso(); } }
 
     function bloqueResumen(titulo, d) {
       var html = '<div class="tit">' + titulo + '</div>';
@@ -834,6 +954,7 @@
         var esEgr = (m.tipo === 'Egreso');
         html += '<div class="mov ' + (esEgr ? 'egreso' : 'ingreso') + '">';
         html += '<div class="info"><div class="det">' + escapar(m.detalle) +
+                ((m.cant && m.cant > 1) ? ' <span class="cantx">×' + m.cant + '</span>' : '') +
                 (m.medio ? '<span class="chip">' + m.medio + '</span>' : '') + '</div>';
         html += '<div class="meta">' + m.hora + '</div></div>';
         html += '<div class="monto">' + (m.monto > 0 ? (esEgr ? '−' : '') + pesos(m.monto) : '—');

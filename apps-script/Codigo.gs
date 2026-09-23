@@ -17,7 +17,7 @@ var HOJA_REGISTRO = 'Registro';
 var HOJA_RESUMEN = 'Resumen';
 
 // Orden de las columnas de la pestaña "Registro".
-var ENCABEZADOS = ['Fecha', 'Mes', 'Detalle', 'Efectivo', 'Tarjeta', 'Otros', 'Egresos', 'USD', 'Medio'];
+var ENCABEZADOS = ['Fecha', 'Mes', 'Detalle', 'Efectivo', 'Tarjeta', 'Otros', 'Egresos', 'USD', 'Medio', 'Cantidad', 'Precio unit'];
 
 /**
  * Sirve la página web (la app) cuando se abre la URL publicada.
@@ -59,11 +59,13 @@ function getHojaRegistro_() {
     hoja.getRange('H:H').setNumberFormat('#,##0.00');           // Montos en USD
     hoja.setColumnWidth(3, 340);                                // Detalle más ancho
   }
-  // Compatibilidad: si a una planilla anterior le falta la columna "Medio", la agrega.
-  if (hoja.getRange(1, 9).getValue() === '') {
-    hoja.getRange(1, 9)
-      .setValue('Medio')
-      .setFontWeight('bold').setBackground('#2b2b2b').setFontColor('#ffffff');
+  // Compatibilidad: completa cualquier encabezado que falte (Medio, Cantidad, Precio unit).
+  for (var k = 1; k <= ENCABEZADOS.length; k++) {
+    if (hoja.getRange(1, k).getValue() === '') {
+      hoja.getRange(1, k)
+        .setValue(ENCABEZADOS[k - 1])
+        .setFontWeight('bold').setBackground('#2b2b2b').setFontColor('#ffffff');
+    }
   }
   return hoja;
 }
@@ -120,61 +122,92 @@ function asegurarResumen_() {
  */
 function guardar(datos) {
   datos = datos || {};
-  var detalle = (datos.detalle || '').toString().trim();
-  var importe = Number(datos.importe) || 0;
   var usd = Number(datos.usd) || 0;
-
-  if (!detalle) {
-    throw new Error('Falta el detalle / concepto.');
-  }
-  if (importe <= 0 && usd <= 0) {
-    throw new Error('Ingresá un importe en pesos o en dólares mayor a cero.');
-  }
+  var medioPago = datos.medio || 'Efectivo';
+  var colMedio = { 'Efectivo': 3, 'Tarjeta': 4, 'Otros': 5 }[medioPago];
+  if (colMedio === undefined) { colMedio = 3; }
 
   var hoja = getHojaRegistro_();
   asegurarResumen_();
 
   var ahora = new Date();
   var mes = Utilities.formatDate(ahora, TZ, 'yyyy-MM');
+  var ancho = ENCABEZADOS.length;
 
-  var efectivo = '', tarjeta = '', otros = '', egresos = '';
+  function nuevaFila() {
+    var f = [];
+    for (var i = 0; i < ancho; i++) { f.push(''); }
+    f[0] = ahora; f[1] = mes;
+    return f;
+  }
+
+  var filas = [];
+  var itemsVendidos = [];
 
   if (datos.tipo === 'egreso') {
-    egresos = importe > 0 ? importe : '';
+    var concepto = (datos.detalle || '').toString().trim();
+    var importe = Number(datos.importe) || 0;
+    if (!concepto) { throw new Error('Falta el concepto del gasto.'); }
+    if (importe <= 0 && usd <= 0) { throw new Error('Ingresá un importe mayor a cero.'); }
+    var fg = nuevaFila();
+    fg[2] = concepto;
+    if (importe > 0) { fg[6] = importe; }
+    if (usd > 0) { fg[7] = usd; }
+    fg[8] = medioPago;
+    filas.push(fg);
   } else {
-    // Venta: el importe va a la columna del medio con que se cobró.
-    if (importe > 0) {
-      if (datos.medio === 'Tarjeta') {
-        tarjeta = importe;
-      } else if (datos.medio === 'Otros') {
-        otros = importe;
-      } else {
-        efectivo = importe; // Efectivo por defecto
-      }
+    // Venta: una o varias líneas (una fila por libro).
+    var lineas = datos.lineas || [];
+    var validas = [];
+    for (var i = 0; i < lineas.length; i++) {
+      var it = (lineas[i].item || '').toString().trim();
+      var cant = Number(lineas[i].cantidad) || 0;
+      if (cant <= 0) { cant = 1; }
+      var precio = Number(lineas[i].precio) || 0;
+      if (!it && precio <= 0) { continue; }
+      if (!it) { throw new Error('Hay una línea con precio pero sin nombre del ítem.'); }
+      validas.push({ item: it, cant: cant, precio: precio });
+    }
+    if (!validas.length && usd <= 0) { throw new Error('Cargá al menos un ítem con precio.'); }
+
+    for (var j = 0; j < validas.length; j++) {
+      var v = validas[j];
+      var total = v.cant * v.precio;
+      var fv = nuevaFila();
+      fv[2] = v.item;
+      if (total > 0) { fv[colMedio] = total; }
+      if (j === 0 && usd > 0) { fv[7] = usd; }   // el USD se apoya en la primera línea
+      fv[8] = medioPago;
+      fv[9] = v.cant;
+      fv[10] = v.precio;
+      filas.push(fv);
+      itemsVendidos.push(v.item);
+    }
+    if (!validas.length && usd > 0) {
+      var fu = nuevaFila();
+      fu[2] = (datos.detalle || 'Venta en dólares');
+      fu[7] = usd; fu[8] = medioPago;
+      filas.push(fu);
     }
   }
 
-  // Medio de pago: en ventas es con qué se cobró; en gastos, con qué se pagó.
-  var medioPago = datos.medio || 'Efectivo';
-
-  var fila = [ahora, mes, detalle, efectivo, tarjeta, otros, egresos, usd > 0 ? usd : '', medioPago];
-
-  // Calcula en qué fila escribir. Cuando cambia el día, salta una fila para
-  // dejar una separación en blanco entre jornadas.
-  // (No se usa appendRow porque ignora las filas vacías y pisaría la separación.)
+  // Deja una fila en blanco cuando cambia el día (una sola vez, antes del bloque).
   var ultima = hoja.getLastRow();
   var destino = ultima + 1;
   if (ultima >= 2) {
     var ultimaFecha = hoja.getRange(ultima, 1).getValue();
     if (ultimaFecha instanceof Date) {
-      var ultDia = Utilities.formatDate(ultimaFecha, TZ, 'yyyy-MM-dd');
-      var hoyDia = Utilities.formatDate(ahora, TZ, 'yyyy-MM-dd');
-      if (ultDia !== hoyDia) { destino += 1; }
+      if (Utilities.formatDate(ultimaFecha, TZ, 'yyyy-MM-dd') !== Utilities.formatDate(ahora, TZ, 'yyyy-MM-dd')) {
+        destino += 1;
+      }
     }
   }
-  hoja.getRange(destino, 1, 1, fila.length).setValues([fila]);
+  hoja.getRange(destino, 1, filas.length, ancho).setValues(filas);
 
-  return getResumen();
+  return {
+    resumen: getResumen(),
+    ml: (datos.tipo === 'egreso') ? [] : buscarEnML_(itemsVendidos)
+  };
 }
 
 /**
@@ -262,7 +295,8 @@ function filaAMovimiento_(f, fila) {
     tipo: esEgreso ? 'Egreso' : 'Ingreso',
     medio: esEgreso ? medioTxt : (medioIng || medioTxt),
     monto: esEgreso ? eg : (ef + ta + ot),
-    usd: us
+    usd: us,
+    cant: Number(f[9]) || 1
   };
 }
 
@@ -532,4 +566,115 @@ function eliminarCliente(fila, sello) {
     }
   }
   throw new Error('No se encontró la ficha. Recargá la lista.');
+}
+
+/* ══════════════════ MERCADO LIBRE ══════════════════ */
+
+// Palabras que no aportan para comparar títulos.
+var STOP_ML = {
+  'de': 1, 'la': 1, 'el': 1, 'los': 1, 'las': 1, 'un': 1, 'una': 1, 'unos': 1, 'unas': 1,
+  'y': 1, 'o': 1, 'en': 1, 'del': 1, 'con': 1, 'para': 1, 'por': 1, 'al': 1, 'a': 1,
+  'su': 1, 'sus': 1, 'lo': 1, 'que': 1, 'libro': 1, 'libros': 1, 'oferta': 1, 'ofertas': 1,
+  'varios': 1, 'usado': 1, 'usados': 1, 'nuevo': 1, 'nuevos': 1, 'ed': 1, 'tomo': 1, 'tomos': 1
+};
+
+/** Normaliza texto: minúsculas, sin acentos, solo letras y números. */
+function normalizar_(s) {
+  s = (s == null ? '' : s).toString().toLowerCase();
+  if (s.normalize) { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  return s.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Tokens significativos de un texto (sin palabras vacías ni muy cortas). */
+function tokens_(s) {
+  var n = normalizar_(s);
+  if (!n) { return []; }
+  var partes = n.split(' ');
+  var out = [];
+  for (var i = 0; i < partes.length; i++) {
+    var p = partes[i];
+    if (p.length >= 3 && !STOP_ML[p]) { out.push(p); }
+  }
+  return out;
+}
+
+/** ¿El ítem vendido (tokens a) se parece al título publicado (tokens b)? */
+function parecido_(a, b) {
+  if (!a.length || !b.length) { return false; }
+  var set = {};
+  for (var i = 0; i < b.length; i++) { set[b[i]] = 1; }
+  var comunes = 0;
+  for (var j = 0; j < a.length; j++) { if (set[a[j]]) { comunes++; } }
+  if (comunes === 0) { return false; }
+  if (a.length === 1) { return comunes === 1; }          // ítem de una sola palabra distintiva
+  return comunes >= 2 && (comunes / a.length) >= 0.5;
+}
+
+/** Encuentra la pestaña con las publicaciones de Mercado Libre (varios nombres posibles). */
+function getHojaML_() {
+  var ss = getPlanilla_();
+  var nombres = ['MercadoLibre', 'Mercado Libre', 'Mercadolibre', 'ML', 'Publicaciones'];
+  for (var i = 0; i < nombres.length; i++) {
+    var h = ss.getSheetByName(nombres[i]);
+    if (h) { return h; }
+  }
+  return null;
+}
+
+/** Lee los títulos publicados en ML (detecta sola la columna de título). */
+function leerTitulosML_() {
+  var hoja = getHojaML_();
+  if (!hoja) { return []; }
+  var ultima = hoja.getLastRow();
+  var ancho = hoja.getLastColumn();
+  if (ultima < 2 || ancho < 1) { return []; }
+
+  var encab = hoja.getRange(1, 1, 1, ancho).getValues()[0];
+  var colTit = -1;
+  for (var c = 0; c < encab.length; c++) {
+    var h = normalizar_(encab[c]);
+    if (h.indexOf('titulo') !== -1 || h.indexOf('publicacion') !== -1 ||
+        h === 'nombre' || h.indexOf('nombre del') !== -1 || h.indexOf('articulo') !== -1) {
+      colTit = c; break;
+    }
+  }
+  if (colTit === -1) { colTit = 0; }   // fallback: primera columna
+
+  var datos = hoja.getRange(2, 1, ultima - 1, ancho).getValues();
+  var out = [];
+  for (var r = 0; r < datos.length; r++) {
+    var t = (datos[r][colTit] || '').toString().trim();
+    if (t) { out.push({ titulo: t, toks: tokens_(t) }); }
+  }
+  return out;
+}
+
+/**
+ * Dado un conjunto de ítems vendidos, devuelve los que se parecen a alguna
+ * publicación de ML: [{ item, titulos: [coincidencias...] }].
+ */
+function buscarEnML_(items) {
+  if (!items || !items.length) { return []; }
+  var titulos = leerTitulosML_();
+  if (!titulos.length) { return []; }
+
+  var out = [];
+  items.forEach(function (it) {
+    var toks = tokens_(it);
+    if (!toks.length) { return; }
+    var coincidencias = [];
+    for (var i = 0; i < titulos.length; i++) {
+      if (parecido_(toks, titulos[i].toks)) {
+        coincidencias.push(titulos[i].titulo);
+        if (coincidencias.length >= 3) { break; }
+      }
+    }
+    if (coincidencias.length) { out.push({ item: it, titulos: coincidencias }); }
+  });
+  return out;
+}
+
+/** Cantidad de publicaciones de ML cargadas (para mostrar estado en la app). */
+function estadoML() {
+  return { publicaciones: leerTitulosML_().length, hay: !!getHojaML_() };
 }
