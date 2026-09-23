@@ -296,21 +296,27 @@ function filaAMovimiento_(f, fila) {
     medio: esEgreso ? medioTxt : (medioIng || medioTxt),
     monto: esEgreso ? eg : (ef + ta + ot),
     usd: us,
-    cant: Number(f[9]) || 1
+    cant: Number(f[9]) || 1,
+    precio: Number(f[10]) || 0
   };
 }
 
 function getDetalle() {
   var hoja = getHojaRegistro_();
   var ultima = hoja.getLastRow();
-  var out = { hoy: [], mes: [] };
+  var out = { hoy: [], ayer: [], mes: [], mesAnterior: [] };
   if (ultima < 2) {
     return out;
   }
 
   var valores = hoja.getRange(2, 1, ultima - 1, ENCABEZADOS.length).getValues();
   var hoyStr = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  var ayerStr = Utilities.formatDate(new Date(Date.now() - 24 * 3600 * 1000), TZ, 'yyyy-MM-dd');
   var mesStr = Utilities.formatDate(new Date(), TZ, 'yyyy-MM');
+  // Mes anterior (yyyy-MM) calculado a partir del mes actual.
+  var pm = mesStr.split('-'); var pmY = +pm[0], pmM = +pm[1] - 1;
+  if (pmM < 1) { pmM = 12; pmY--; }
+  var mesAntStr = pmY + '-' + (pmM < 10 ? '0' : '') + pmM;
 
   valores.forEach(function (f, i) {
     var item = filaAMovimiento_(f, i + 2);   // los datos empiezan en la fila 2
@@ -318,11 +324,15 @@ function getDetalle() {
     var fStr = Utilities.formatDate(f[0], TZ, 'yyyy-MM-dd');
     var fMes = Utilities.formatDate(f[0], TZ, 'yyyy-MM');
     if (fMes === mesStr) { out.mes.push(item); }
+    if (fMes === mesAntStr) { out.mesAnterior.push(item); }
     if (fStr === hoyStr) { out.hoy.push(item); }
+    if (fStr === ayerStr) { out.ayer.push(item); }
   });
 
   out.hoy.sort(function (a, b) { return b.orden - a.orden; });
+  out.ayer.sort(function (a, b) { return b.orden - a.orden; });
   out.mes.sort(function (a, b) { return b.orden - a.orden; });
+  out.mesAnterior.sort(function (a, b) { return b.orden - a.orden; });
   return out;
 }
 
@@ -433,6 +443,65 @@ function eliminarMovimiento(fila, sello) {
     }
   }
   throw new Error('No se encontró el movimiento. Recargá el detalle e intentá de nuevo.');
+}
+
+/**
+ * Edita un movimiento (corrige ítem/precio/cantidad/medio, o concepto/importe).
+ * Conserva la fecha original y el USD. Valida con tolerancia y, si la fila se
+ * movió, ubica el movimiento por su sello.
+ */
+function editarMovimiento(fila, sello, d) {
+  d = d || {};
+  fila = Number(fila) || 0;
+  sello = Number(sello) || 0;
+  var hoja = getHojaRegistro_();
+  var ultima = hoja.getLastRow();
+  if (ultima < 2) { throw new Error('No hay movimientos.'); }
+
+  var r = 0;
+  if (fila >= 2 && fila <= ultima) {
+    var fx = hoja.getRange(fila, 1).getValue();
+    if (fx instanceof Date && (!sello || Math.abs(fx.getTime() - sello) <= 2000)) { r = fila; }
+  }
+  if (!r && sello) {
+    var fechas = hoja.getRange(2, 1, ultima - 1, 1).getValues();
+    for (var i = 0; i < fechas.length; i++) {
+      var dd = fechas[i][0];
+      if (dd instanceof Date && Math.abs(dd.getTime() - sello) <= 2000) { r = i + 2; break; }
+    }
+  }
+  if (!r) { throw new Error('No se encontró el movimiento. Recargá el detalle.'); }
+
+  var actual = hoja.getRange(r, 1, 1, ENCABEZADOS.length).getValues()[0];
+  var fecha = actual[0];
+  var mes = actual[1];
+  var usd = Number(actual[7]) || 0;   // se conserva el USD original
+
+  var detalle = (d.detalle || '').toString().trim();
+  if (!detalle) { throw new Error('Falta el detalle.'); }
+
+  var f11 = [fecha, mes, detalle, '', '', '', '', usd > 0 ? usd : '', '', '', ''];
+  if (d.tipo === 'egreso') {
+    var importe = Number(d.importe) || 0;
+    if (importe <= 0 && usd <= 0) { throw new Error('Ingresá un importe mayor a cero.'); }
+    if (importe > 0) { f11[6] = importe; }
+    f11[8] = d.medio || 'Efectivo';
+  } else {
+    var cant = Number(d.cantidad) || 1;
+    if (cant <= 0) { cant = 1; }
+    var precio = Number(d.precio) || 0;
+    var total = cant * precio;
+    if (total <= 0 && usd <= 0) { throw new Error('Ingresá un precio mayor a cero.'); }
+    var medio = d.medio || 'Efectivo';
+    var colMedio = { 'Efectivo': 3, 'Tarjeta': 4, 'Otros': 5 }[medio];
+    if (colMedio === undefined) { colMedio = 3; }
+    if (total > 0) { f11[colMedio] = total; }
+    f11[8] = medio;
+    f11[9] = cant;
+    f11[10] = precio;
+  }
+  hoja.getRange(r, 1, 1, ENCABEZADOS.length).setValues([f11]);
+  return getResumen();
 }
 
 /**

@@ -76,9 +76,15 @@ Se crean **dos pestañas nuevas** en tu archivo (no se toca nada de lo que ya te
 
 Con el botón **"Ver detalle del día y del mes"** se abre una ventana con el
 listado de cada movimiento (hora, detalle, medio de pago e importe), con solapas
-**Hoy / Este mes / Meses / Período** y filtros: **Todos, Ventas, Gastos, Efectivo,
-Tarjeta, Otros, Caja**. Los filtros viven dentro de esa ventana para no recargar la
-pantalla principal.
+**Hoy / Ayer / Este mes / Mes anterior / Meses / Período** y filtros: **Todos, Ventas,
+Gastos, Efectivo, Tarjeta, Otros, Caja**. Los filtros viven dentro de esa ventana para
+no recargar la pantalla principal.
+
+- **Resumen destacado:** arriba del listado se ven los totales del período elegido
+  (Ingresos, Egresos, Neto y Caja).
+- **Buscar:** un campo para filtrar el listado por texto (ej. "Gusinde").
+- **Editar / borrar:** cada movimiento tiene ✎ (corregir ítem, cantidad, precio,
+  concepto o medio) y 🗑 (eliminar), los dos con validación.
 
 - **Meses (archivo histórico):** la solapa *Meses* tiene un desplegable con todos los
   meses que tienen movimientos; al elegir uno ves ese mes completo (con sus filtros y
