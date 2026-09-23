@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg: #16120c;
@@ -504,7 +504,7 @@
     <footer class="pie">
       <div class="pie-nombre">Héctor Tito Delgado</div>
       <div class="pie-dir">Paraguay 439 · (1057) CABA</div>
-      <div class="pie-ver">versión 14</div>
+      <div class="pie-ver">versión 15</div>
     </footer>
   </div>
 
@@ -882,10 +882,10 @@
     function titulosDeArchivo(buffer, name) {
       var esCsv = /\.csv$/i.test(name || '');
       var filas;
-      if (esCsv && typeof XLSX === 'undefined') {
+      if (esCsv) {
         filas = parseCSVsimple(new TextDecoder('utf-8').decode(new Uint8Array(buffer)));
       } else {
-        if (typeof XLSX === 'undefined') { throw new Error('No cargó el lector de Excel (SheetJS). Necesitás internet o subí un CSV.'); }
+        if (typeof XLSX === 'undefined') { throw new Error('No cargó el lector de Excel. Probá con internet, o descargá el archivo como CSV y subilo.'); }
         var wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
         if (!wb || !wb.SheetNames || !wb.SheetNames.length) { throw new Error('El archivo no tiene hojas.'); }
         var ws = wb.Sheets[wb.SheetNames[0]];
@@ -925,7 +925,9 @@
       function terminar() {
         if (!titulos.length) {
           btn.disabled = false; btn.textContent = txt;
-          mlMsg(errores.length ? ('No se pudo leer: ' + errores[0]) : 'No encontré títulos en el/los archivo(s).', true);
+          mlMsg(errores.length
+            ? ('No se pudo leer: ' + errores[0] + ' — probá descargando el archivo como CSV y subiéndolo.')
+            : 'No encontré títulos en el/los archivo(s).', true);
           return;
         }
         google.script.run
