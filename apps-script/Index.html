@@ -504,7 +504,7 @@
     <footer class="pie">
       <div class="pie-nombre">Héctor Tito Delgado</div>
       <div class="pie-dir">Paraguay 439 · (1057) CABA</div>
-      <div class="pie-ver">versión 12</div>
+      <div class="pie-ver">versión 13</div>
     </footer>
   </div>
 
@@ -612,10 +612,13 @@
       </div>
       <div class="ficha-form">
         <p class="aviso-intro" id="mlEstado">…</p>
-        <p class="aviso-intro">Subí el Excel (.xlsx) o CSV que exportás de Mercado Libre. La app detecta sola la columna del título y reemplaza la lista anterior.</p>
-        <input type="file" id="mlFile" accept=".xlsx,.xls,.csv">
+        <p class="aviso-intro">Subí el Excel (.xlsx) o CSV que exportás de Mercado Libre. La app detecta sola la columna del título.</p>
+        <label for="mlCuenta">Cuenta</label>
+        <input type="text" id="mlCuenta" autocomplete="off" placeholder="Ej: Cuenta 1 (para tener las dos por separado)">
+        <label for="mlFile">Archivo(s)</label>
+        <input type="file" id="mlFile" accept=".xlsx,.xls,.csv" multiple>
         <button class="guardar venta" id="mlSubir" onclick="subirML()">Subir y actualizar</button>
-        <div class="hint" id="mlMsg"></div>
+        <div class="hint" id="mlMsg">Al subir, se reemplazan solo las publicaciones de esa cuenta (las otras quedan). Si dejás la cuenta vacía, se reemplaza toda la lista.</div>
       </div>
     </div>
   </div>
@@ -824,66 +827,85 @@
       return s.replace(/[^a-z0-9]+/g, ' ').trim();
     }
 
+    function textoEstadoML(e) {
+      if (!e || !e.publicaciones) { return 'Todavía no cargaste publicaciones.'; }
+      var s = 'Hay ' + e.publicaciones + ' publicaciones cargadas';
+      var cuentas = e.cuentas || {};
+      var keys = Object.keys(cuentas);
+      if (keys.length) { s += ' — ' + keys.map(function (k) { return k + ': ' + cuentas[k]; }).join(' · '); }
+      return s + '.';
+    }
+
     function abrirML() {
       document.getElementById('mlModal').classList.add('abierto');
-      document.getElementById('mlMsg').textContent = '';
       document.getElementById('mlFile').value = '';
       document.getElementById('mlEstado').textContent = 'Cargando…';
       google.script.run
-        .withSuccessHandler(function (e) {
-          document.getElementById('mlEstado').textContent = (e && e.publicaciones)
-            ? ('Hay ' + e.publicaciones + ' publicaciones cargadas.')
-            : 'Todavía no cargaste publicaciones.';
-        })
+        .withSuccessHandler(function (e) { document.getElementById('mlEstado').textContent = textoEstadoML(e); })
         .withFailureHandler(function () { document.getElementById('mlEstado').textContent = ''; })
         .estadoML();
     }
     function cerrarMl() { document.getElementById('mlModal').classList.remove('abierto'); }
     function fondoMlModal(e) { if (e.target === document.getElementById('mlModal')) { cerrarMl(); } }
 
+    // Extrae los títulos de un archivo (ArrayBuffer) leído con SheetJS.
+    function titulosDeArchivo(buffer) {
+      var wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var filas = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
+      if (!filas.length) { return []; }
+      var enc = (filas[0] || []).map(function (c) { return normalizarTxt(c); });
+      var col = -1;
+      for (var i = 0; i < enc.length; i++) {
+        var h = enc[i];
+        if (h.indexOf('titulo') !== -1 || h.indexOf('publicacion') !== -1 || h === 'nombre' || h.indexOf('articulo') !== -1) { col = i; break; }
+      }
+      if (col === -1) { col = 0; }
+      var out = [];
+      for (var r = 1; r < filas.length; r++) {   // se asume fila 1 = encabezados
+        var row = filas[r] || [];
+        var t = (row[col] == null ? '' : row[col]).toString().trim();
+        if (t) { out.push(t); }
+      }
+      return out;
+    }
+
     function subirML() {
       var input = document.getElementById('mlFile');
+      var cuenta = document.getElementById('mlCuenta').value.trim();
       if (!input.files || !input.files.length) { toast('Elegí un archivo primero.', 'error'); return; }
-      if (typeof XLSX === 'undefined') { toast('No se pudo cargar el lector de Excel. Probá de nuevo con internet, o usá un CSV.', 'error'); return; }
+      if (typeof XLSX === 'undefined') { toast('No se pudo cargar el lector de Excel. Probá de nuevo con internet, o subí un CSV.', 'error'); return; }
+
       var btn = document.getElementById('mlSubir');
       btn.disabled = true; var txt = btn.textContent; btn.textContent = 'Procesando…';
-      var reader = new FileReader();
-      reader.onload = function (e) {
-        try {
-          var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-          var ws = wb.Sheets[wb.SheetNames[0]];
-          var filas = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false });
-          if (!filas.length) { throw new Error('El archivo está vacío.'); }
-          var enc = (filas[0] || []).map(function (c) { return normalizarTxt(c); });
-          var col = -1;
-          for (var i = 0; i < enc.length; i++) {
-            var h = enc[i];
-            if (h.indexOf('titulo') !== -1 || h.indexOf('publicacion') !== -1 || h === 'nombre' || h.indexOf('articulo') !== -1) { col = i; break; }
-          }
-          if (col === -1) { col = 0; }   // sin encabezado reconocible: primera columna
-          var titulos = [];
-          for (var r = 1; r < filas.length; r++) {   // se asume fila 1 = encabezados
-            var row = filas[r] || [];
-            var t = (row[col] == null ? '' : row[col]).toString().trim();
-            if (t) { titulos.push(t); }
-          }
-          if (!titulos.length) { throw new Error('No encontré títulos en el archivo.'); }
-          google.script.run
-            .withSuccessHandler(function (res) {
-              btn.disabled = false; btn.textContent = txt;
-              document.getElementById('mlMsg').textContent = '✓ ' + res.publicaciones + ' publicaciones cargadas.';
-              document.getElementById('mlEstado').textContent = 'Hay ' + res.publicaciones + ' publicaciones cargadas.';
-              toast('Publicaciones actualizadas', 'ok');
-            })
-            .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = txt; toast('Error al guardar: ' + err.message, 'error'); })
-            .guardarPublicacionesML(titulos);
-        } catch (err) {
-          btn.disabled = false; btn.textContent = txt;
-          toast('No se pudo leer el archivo: ' + err.message, 'error');
-        }
-      };
-      reader.onerror = function () { btn.disabled = false; btn.textContent = txt; toast('No se pudo leer el archivo.', 'error'); };
-      reader.readAsArrayBuffer(input.files[0]);
+      var archivos = Array.prototype.slice.call(input.files);
+      var titulos = [];
+      var idx = 0;
+
+      function terminar() {
+        if (!titulos.length) { btn.disabled = false; btn.textContent = txt; toast('No encontré títulos en el/los archivo(s).', 'error'); return; }
+        google.script.run
+          .withSuccessHandler(function (res) {
+            btn.disabled = false; btn.textContent = txt;
+            document.getElementById('mlMsg').textContent = '✓ ' + res.agregadas + ' publicaciones' + (cuenta ? ' en «' + cuenta + '»' : '') + '. Total: ' + res.publicaciones + '.';
+            abrirML();
+            toast('Publicaciones actualizadas', 'ok');
+          })
+          .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = txt; toast('Error al guardar: ' + err.message, 'error'); })
+          .guardarPublicacionesML(titulos, cuenta);
+      }
+
+      function siguiente() {
+        if (idx >= archivos.length) { terminar(); return; }
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          try { titulosDeArchivo(e.target.result).forEach(function (t) { titulos.push(t); }); } catch (err) { /* ignora ese archivo */ }
+          idx++; siguiente();
+        };
+        reader.onerror = function () { idx++; siguiente(); };
+        reader.readAsArrayBuffer(archivos[idx]);
+      }
+      siguiente();
     }
 
     function bloqueResumen(titulo, d) {

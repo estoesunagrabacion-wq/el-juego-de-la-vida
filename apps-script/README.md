@@ -131,10 +131,15 @@ precio de cada línea). En la planilla `Registro` se guarda **una fila por libro
 
 Podés avisarte para no vender dos veces lo mismo:
 
-1. En la pantalla principal, tocá **"📚 Publicaciones de Mercado Libre…"** y **subí el
-   Excel (.xlsx) o CSV** que exportás de Mercado Libre. La app lo lee en el navegador,
-   detecta sola la columna de **Título** y guarda la lista en la pestaña `MercadoLibre`
-   (la crea si no existe y reemplaza la anterior).
+1. En la pantalla principal, tocá **"📚 Publicaciones de Mercado Libre…"**, poné un
+   **nombre de cuenta** (opcional) y **subí el Excel (.xlsx) o CSV** que exportás de
+   Mercado Libre (podés seleccionar **varios archivos** a la vez). La app lo lee en el
+   navegador, detecta sola la columna de **Título** y guarda la lista en la pestaña
+   `MercadoLibre` (Título | Cuenta).
+   - Si tenés **dos cuentas**, subí cada una con su nombre: al subir una, se reemplazan
+     solo las publicaciones de esa cuenta y **las de la otra quedan intactas**.
+   - Si dejás la cuenta vacía, se reemplaza toda la lista.
+   - En el aviso de venta duplicada verás **en qué cuenta** está publicado.
 2. Al guardar una venta, si algún ítem **se parece** a una publicación, aparece un
    aviso con las coincidencias, para que bajes la publicación. No bloquea la venta.
 

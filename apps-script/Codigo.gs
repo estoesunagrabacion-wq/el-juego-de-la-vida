@@ -699,13 +699,14 @@ function leerTitulosML_() {
   if (ultima < 2 || ancho < 1) { return []; }
 
   var encab = hoja.getRange(1, 1, 1, ancho).getValues()[0];
-  var colTit = -1;
+  var colTit = -1, colCuenta = -1;
   for (var c = 0; c < encab.length; c++) {
     var h = normalizar_(encab[c]);
-    if (h.indexOf('titulo') !== -1 || h.indexOf('publicacion') !== -1 ||
-        h === 'nombre' || h.indexOf('nombre del') !== -1 || h.indexOf('articulo') !== -1) {
-      colTit = c; break;
+    if (colTit === -1 && (h.indexOf('titulo') !== -1 || h.indexOf('publicacion') !== -1 ||
+        h === 'nombre' || h.indexOf('nombre del') !== -1 || h.indexOf('articulo') !== -1)) {
+      colTit = c;
     }
+    if (colCuenta === -1 && h.indexOf('cuenta') !== -1) { colCuenta = c; }
   }
   if (colTit === -1) { colTit = 0; }   // fallback: primera columna
 
@@ -713,7 +714,9 @@ function leerTitulosML_() {
   var out = [];
   for (var r = 0; r < datos.length; r++) {
     var t = (datos[r][colTit] || '').toString().trim();
-    if (t) { out.push({ titulo: t, toks: tokens_(t) }); }
+    if (!t) { continue; }
+    var cu = (colCuenta >= 0) ? (datos[r][colCuenta] || '').toString().trim() : '';
+    out.push({ titulo: t, cuenta: cu, toks: tokens_(t) });
   }
   return out;
 }
@@ -734,7 +737,8 @@ function buscarEnML_(items) {
     var coincidencias = [];
     for (var i = 0; i < titulos.length; i++) {
       if (parecido_(toks, titulos[i].toks)) {
-        coincidencias.push(titulos[i].titulo);
+        var etiqueta = titulos[i].cuenta ? (titulos[i].titulo + ' — ' + titulos[i].cuenta) : titulos[i].titulo;
+        coincidencias.push(etiqueta);
         if (coincidencias.length >= 3) { break; }
       }
     }
@@ -743,38 +747,61 @@ function buscarEnML_(items) {
   return out;
 }
 
-/** Cantidad de publicaciones de ML cargadas (para mostrar estado en la app). */
+/** Estado de las publicaciones de ML: total y desglose por cuenta. */
 function estadoML() {
-  return { publicaciones: leerTitulosML_().length, hay: !!getHojaML_() };
+  var lista = leerTitulosML_();
+  var cuentas = {};
+  lista.forEach(function (x) {
+    var c = x.cuenta || '(sin cuenta)';
+    cuentas[c] = (cuentas[c] || 0) + 1;
+  });
+  return { publicaciones: lista.length, hay: !!getHojaML_(), cuentas: cuentas };
 }
 
 /**
- * Reemplaza la lista de publicaciones de Mercado Libre con los títulos que la
- * app extrajo del Excel/CSV subido desde el navegador. Crea la pestaña
- * "MercadoLibre" si no existe.
+ * Guarda las publicaciones que la app extrajo del Excel/CSV subido desde el
+ * navegador, en la pestaña "MercadoLibre" (Título | Cuenta). La crea si no
+ * existe. Si se indica una cuenta, reemplaza SOLO las publicaciones de esa
+ * cuenta y conserva las demás; si la cuenta va vacía, reemplaza toda la lista.
  * @param {string[]} titulos
- * @return {Object} { publicaciones: n }
+ * @param {string} [cuenta]
+ * @return {Object} { publicaciones, cuenta, agregadas }
  */
-function guardarPublicacionesML(titulos) {
+function guardarPublicacionesML(titulos, cuenta) {
   titulos = titulos || [];
+  cuenta = (cuenta || '').toString().trim();
   var ss = getPlanilla_();
   var hoja = getHojaML_();
   if (!hoja) { hoja = ss.insertSheet('MercadoLibre'); }
 
+  // Conserva las publicaciones de OTRAS cuentas (solo si se indicó una cuenta).
+  var conservadas = [];
+  var ultima = hoja.getLastRow();
+  if (cuenta && ultima >= 2) {
+    var previas = leerTitulosML_();
+    for (var p = 0; p < previas.length; p++) {
+      if ((previas[p].cuenta || '') !== cuenta) {
+        conservadas.push([previas[p].titulo, previas[p].cuenta || '']);
+      }
+    }
+  }
+
+  var nuevas = [];
+  for (var i = 0; i < titulos.length; i++) {
+    var t = (titulos[i] == null ? '' : titulos[i]).toString().trim();
+    if (t) { nuevas.push([t, cuenta]); }
+  }
+
+  var todas = conservadas.concat(nuevas);
+
   hoja.clearContents();
-  hoja.getRange(1, 1)
-    .setValue('Título')
+  hoja.getRange(1, 1, 1, 2)
+    .setValues([['Título', 'Cuenta']])
     .setFontWeight('bold').setBackground('#2b2b2b').setFontColor('#ffffff');
   hoja.setFrozenRows(1);
   hoja.setColumnWidth(1, 460);
-
-  var limpios = [];
-  for (var i = 0; i < titulos.length; i++) {
-    var t = (titulos[i] == null ? '' : titulos[i]).toString().trim();
-    if (t) { limpios.push([t]); }
+  if (todas.length) {
+    hoja.getRange(2, 1, todas.length, 2).setValues(todas);
   }
-  if (limpios.length) {
-    hoja.getRange(2, 1, limpios.length, 1).setValues(limpios);
-  }
-  return { publicaciones: limpios.length };
+  return { publicaciones: todas.length, cuenta: cuenta, agregadas: nuevas.length };
 }
