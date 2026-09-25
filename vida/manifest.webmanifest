@@ -1,0 +1,20 @@
+{
+  "name": "Juego de la Vida — tablero de Conway",
+  "short_name": "Vida",
+  "description": "El autómata celular de Conway: dibujá, estampá figuras clásicas y mirá cómo evoluciona el tablero.",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "id": "/vida/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070c17",
+  "theme_color": "#070c17",
+  "categories": ["games", "education"],
+  "icons": [
+    { "src": "icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
