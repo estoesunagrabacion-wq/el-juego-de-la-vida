@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#f4f0e6" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#15120e" media="(prefers-color-scheme: dark)" />
+<title>¿De qué texto es? — juego de oraciones de Borges</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icono-192.png" />
+<link rel="apple-touch-icon" href="icono-192.png" />
+<meta name="apple-mobile-web-app-title" content="¿De qué texto?" />
+<meta name="mobile-web-app-capable" content="yes" />
+<style>
+  /* ── papel y tinta ───────────────────────────────────────── */
+  :root{
+    --papel:#f4f0e6; --papel2:#fffdf7; --tinta:#1c1814; --tinta2:#6d6355;
+    --linea:#ddd2bf; --linea2:#ebe3d3; --acento:#8f2f22;
+    --ok:#3f6b45; --err:#9b3226;
+    --serif:Georgia,"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --papel:#15120e; --papel2:#1d1915; --tinta:#e9e0d1; --tinta2:#968c7c;
+      --linea:#342d24; --linea2:#241f19; --acento:#cf7d64;
+      --ok:#83b287; --err:#d8806f;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--papel);color:var(--tinta);
+    font-family:var(--serif);-webkit-text-size-adjust:100%;
+    font-feature-settings:"liga" 1,"kern" 1}
+  body{padding-bottom:64px}
+  .wrap{max-width:640px;margin:0 auto;padding:0 22px}
+  .hidden{display:none!important}
+
+  /* ── tipografía de servicio ──────────────────────────────── */
+  .vs{font-family:var(--sans);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--tinta2)}
+  .muted{color:var(--tinta2)}
+  .small{font-size:13px}
+
+  /* ── cabecera ────────────────────────────────────────────── */
+  header{padding:38px 0 0}
+  .kicker{margin:0 0 14px;font-family:var(--sans);font-size:11px;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--acento)}
+  h1{margin:0;font-size:34px;font-weight:400;letter-spacing:-.01em;line-height:1.15}
+  .sub{margin:8px 0 0;color:var(--tinta2);font-size:15px;font-style:italic}
+  header .regla{margin:22px 0 0;border-top:1px solid var(--tinta);
+    border-bottom:1px solid var(--linea);height:3px}
+
+  /* ── navegación ──────────────────────────────────────────── */
+  nav{display:flex;gap:26px;margin:14px 0 0}
+  .tab{background:none;border:none;padding:6px 0;cursor:pointer;
+    font-family:var(--sans);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--tinta2);border-bottom:2px solid transparent}
+  .tab.on{color:var(--tinta);border-bottom-color:var(--acento)}
+
+  /* ── marcador ────────────────────────────────────────────── */
+  .marcador{display:flex;flex-wrap:wrap;gap:20px;margin:26px 0 0;
+    padding-bottom:20px;border-bottom:1px solid var(--linea)}
+  .marcador span{font-family:var(--sans);font-size:10.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--tinta2);display:flex;align-items:baseline;gap:6px}
+  .marcador b{font-family:var(--serif);font-size:22px;font-weight:400;
+    letter-spacing:0;text-transform:none;color:var(--tinta)}
+
+  /* ── el fragmento ────────────────────────────────────────── */
+  .frag{margin:44px 0 0}
+  .frag p{font-size:21px;line-height:1.62;margin:0 0 20px;
+    padding-left:1.7em;text-indent:-1.7em;hyphens:auto}
+  .frag p:last-child{margin-bottom:0}
+  .frag p.nueva{animation:aparecer .55s ease both}
+  .frag p.ctx{color:var(--tinta2);font-size:18px;padding-left:1.7em;text-indent:0}
+  .cuenta{display:flex;justify-content:space-between;gap:16px;align-items:baseline;
+    padding:11px 0;border-bottom:1px solid var(--linea)}
+  .cuenta:last-child{border-bottom:none}
+  .cuenta .q{font-size:19px}
+  .cuenta .r{font-family:var(--sans);font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--tinta2);white-space:nowrap}
+  .cuenta.mal .r{color:var(--err)}
+  .cuenta.bien .r{color:var(--ok)}
+  @keyframes aparecer{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .nro{display:inline-block;width:1.7em;font-family:var(--sans);font-size:11px;
+    color:var(--acento);vertical-align:2px;text-indent:0}
+  @media (max-width:480px){ .frag p{font-size:19px} }
+
+  /* ── botones ─────────────────────────────────────────────── */
+  .btn{appearance:none;cursor:pointer;font-family:var(--sans);font-size:11.5px;
+    letter-spacing:.12em;text-transform:uppercase;padding:12px 18px;
+    background:none;color:var(--tinta);border:1px solid var(--linea);border-radius:2px;
+    transition:background .15s,border-color .15s,opacity .15s}
+  .btn:hover:not(:disabled){border-color:var(--tinta2);background:var(--papel2)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn:disabled{opacity:.38;cursor:default}
+  .btn.fuerte{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+  .btn.fuerte:hover:not(:disabled){background:var(--tinta2);border-color:var(--tinta2)}
+  .btn.fuerte:disabled{background:none;color:var(--tinta2);border-color:var(--linea);opacity:1}
+  .btn.full{width:100%}
+  .acciones{display:flex;gap:10px;flex-wrap:wrap;margin:30px 0 0;
+    padding-top:22px;border-top:1px solid var(--linea)}
+  .atajos{margin:14px 0 0;display:none}
+  @media (hover:hover) and (pointer:fine){ .atajos{display:block} }
+
+  /* ── opciones ────────────────────────────────────────────── */
+  .opciones{counter-reset:op;margin:26px 0 0;border-top:1px solid var(--linea)}
+  .op{counter-increment:op;position:relative;display:block;width:100%;text-align:left;
+    background:none;border:none;border-bottom:1px solid var(--linea);
+    padding:15px 12px 15px 34px;font-family:var(--serif);font-size:18px;color:var(--tinta);
+    cursor:pointer;line-height:1.35;transition:background .15s}
+  .op::before{content:counter(op,lower-alpha) ".";position:absolute;left:6px;top:17px;
+    font-family:var(--sans);font-size:12px;color:var(--acento)}
+  .op:hover:not(:disabled){background:var(--papel2)}
+  .op:disabled{cursor:default}
+  .op .lib{display:block;margin-top:3px;font-family:var(--sans);font-size:10.5px;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--tinta2)}
+  .op:last-child{border-bottom:none}
+  .op.bien{background:var(--papel2);box-shadow:inset 3px 0 0 var(--ok)}
+  .op.mal{opacity:.55;box-shadow:inset 3px 0 0 var(--err)}
+
+  /* ── resultado ───────────────────────────────────────────── */
+  .resultado{margin:28px 0 0;padding:20px 0 0;border-top:1px solid var(--tinta)}
+  .resultado h3{margin:0 0 12px;font-family:var(--sans);font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+  .resultado.bien h3{color:var(--ok)}
+  .resultado.mal h3{color:var(--err)}
+  .resultado .dato{font-size:24px;font-style:italic;line-height:1.25}
+  .resultado .donde{margin-top:8px;font-family:var(--sans);font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--tinta2)}
+
+  /* ── secciones ───────────────────────────────────────────── */
+  .card{margin:44px 0 0;padding-top:22px;border-top:1px solid var(--linea)}
+  .card h2{margin:0 0 18px;font-family:var(--sans);font-size:11px;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--tinta2);font-weight:600}
+
+  /* ── fichas ──────────────────────────────────────────────── */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{font-family:var(--sans);font-size:11.5px;letter-spacing:.06em;
+    padding:8px 13px;border:1px solid var(--linea);border-radius:2px;
+    color:var(--tinta2);cursor:pointer;user-select:none;transition:all .15s}
+  .chip:hover{border-color:var(--tinta2)}
+  .chip.on{border-color:var(--tinta);color:var(--tinta);background:var(--papel2)}
+  .chip.on::before{content:"✓ ";color:var(--acento)}
+
+  /* ── formularios ─────────────────────────────────────────── */
+  label:not(.prev-fila){display:block;margin:18px 0 6px;font-family:var(--sans);font-size:10.5px;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--tinta2)}
+  input,select,textarea{width:100%;background:var(--papel2);color:var(--tinta);
+    border:1px solid var(--linea);border-radius:2px;padding:11px 12px;
+    font-size:16px;font-family:var(--serif)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--tinta2)}
+  /* con Tab hay que ver dónde se está parado */
+  .btn:focus-visible,.op:focus-visible,.tab:focus-visible,.chip:focus-visible,
+  .sug button:focus-visible,input:focus-visible,textarea:focus-visible,
+  .prev-fila input:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+  textarea{min-height:150px;resize:vertical;line-height:1.55;font-size:15px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row>*{flex:1;min-width:150px}
+  .row>.btn{flex:0 0 auto}
+
+  /* ── listas y tablas ─────────────────────────────────────── */
+  table{width:100%;border-collapse:collapse}
+  td{padding:13px 0;border-bottom:1px solid var(--linea);vertical-align:top;font-size:16px}
+  td.der{text-align:right;white-space:nowrap;width:1%;padding-left:12px}
+  .vacio{padding:34px 0;color:var(--tinta2);font-style:italic;line-height:1.6;font-size:17px}
+  .aviso{margin-top:16px;font-family:var(--sans);font-size:12px;line-height:1.65;color:var(--tinta2)}
+  code{font-size:12px;background:var(--linea2);padding:1px 5px;border-radius:2px}
+
+  /* ── buscador de títulos ─────────────────────────────────── */
+  .sug{margin-top:10px}
+  .sug button{display:flex;justify-content:space-between;gap:14px;align-items:baseline;
+    width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--linea);
+    padding:12px 2px;font-family:var(--serif);font-size:17px;color:var(--tinta);
+    cursor:pointer;line-height:1.3}
+  .sug button:last-child{border-bottom:none}
+  .sug button:hover,.sug button.on{background:var(--papel2)}
+  .sug button b{font-weight:400;color:var(--acento)}
+  .sug .lib{font-family:var(--sans);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--tinta2);flex:0 0 auto}
+  .sug .nada{padding:12px 2px;color:var(--tinta2);font-style:italic}
+
+  /* ── previsualización del libro ──────────────────────────── */
+  .prev{margin-top:22px;border-top:1px solid var(--tinta)}
+  .prev-cab{display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:12px 0;border-bottom:1px solid var(--linea);
+    font-family:var(--sans);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--tinta2)}
+  .prev-cab a{color:var(--acento);cursor:pointer;text-decoration:none;border-bottom:1px solid currentColor}
+  .prev-fila{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--linea);
+    align-items:flex-start;cursor:pointer;margin:0;font-family:var(--serif);
+    font-size:16px;letter-spacing:0;text-transform:none;color:var(--tinta)}
+  .prev-fila:last-child{border-bottom:none}
+  .prev-fila input{width:16px;height:16px;flex:0 0 auto;margin:4px 0 0;accent-color:var(--acento)}
+  .prev-fila .t{flex:1;min-width:0}
+  .prev-fila b{font-weight:400;font-size:17px}
+  .prev-fila .frase{display:block;color:var(--tinta2);font-size:14px;font-style:italic;
+    margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prev-fila.duda b::after{content:" · revisar";font-family:var(--sans);font-size:10px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--acento)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="kicker">Un juego de lectura</p>
+    <h1>¿De qué texto es?</h1>
+    <p class="sub">Una oración al azar. Adiviná a qué texto pertenece.</p>
+    <div class="regla"></div>
+    <nav>
+      <button class="tab on" data-vista="jugar">Jugar</button>
+      <button class="tab" data-vista="marcador">Marcador</button>
+      <button class="tab" data-vista="textos">Textos</button>
+    </nav>
+  </header>
+
+  <!-- ══════════ JUGAR ══════════ -->
+  <section id="vista-jugar">
+    <div class="marcador">
+      <span><b id="mPuntos">0</b> puntos</span>
+      <span><b id="mRacha">0</b> racha</span>
+      <span><b id="mAciertos">0</b> aciertos</span>
+      <span><b id="mJugadas">0</b> jugadas</span>
+    </div>
+
+    <div class="hidden" id="cardVacio">
+      <div class="vacio">
+        Todavía no hay textos cargados.<br>
+        Andá a <b>Textos</b> y cargá un libro para empezar a jugar.
+      </div>
+      <button class="btn fuerte" id="irATextos">Cargar textos</button>
+    </div>
+
+    <div class="hidden" id="cardJuego">
+      <div class="frag" id="frag"></div>
+
+      <div class="acciones" id="acciones">
+        <button class="btn" id="btnMas">Oración siguiente</button>
+        <button class="btn" id="btnRindo">Me rindo</button>
+      </div>
+      <p class="vs atajos" id="atajos">a–f responden · espacio pide otra oración · Enter sigue</p>
+
+      <div id="zonaRespuesta">
+        <div class="opciones" id="opciones"></div>
+        <div id="zonaDificil" class="hidden">
+          <label for="inAdivinar">Escribí el título</label>
+          <input id="inAdivinar" autocomplete="off" autocapitalize="off" spellcheck="false"
+                 placeholder="con unas letras alcanza…">
+          <div class="sug" id="sugerencias"></div>
+          <button class="btn fuerte full" id="btnAdivinar" style="margin-top:14px" disabled>Adivinar</button>
+        </div>
+      </div>
+
+      <div id="resultado"></div>
+
+      <button class="btn hidden" id="btnPasaje" style="margin-top:20px">Ver el pasaje completo</button>
+      <button class="btn fuerte full hidden" id="btnOtra" style="margin-top:14px">Otra oración</button>
+    </div>
+
+    <div class="card">
+      <h2>La partida</h2>
+      <label>Dificultad</label>
+      <div class="chips" id="chipsModo">
+        <div class="chip on" tabindex="0" role="button" data-modo="facil">Fácil · 6 opciones</div>
+        <div class="chip" tabindex="0" role="button" data-modo="dificil">Difícil · escribir el título</div>
+      </div>
+      <p class="vs" style="margin:10px 0 0">En difícil los aciertos valen el doble</p>
+      <label style="margin-top:18px">Libros en juego</label>
+      <div class="chips" id="chipsLibros"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ MARCADOR ══════════ -->
+  <section id="vista-marcador" class="hidden">
+    <div class="card" style="border-top:none;margin-top:26px;padding-top:0">
+      <h2>La cuenta</h2>
+      <table id="resumen"></table>
+    </div>
+    <div class="card">
+      <h2>Texto por texto</h2>
+      <p class="vs" style="margin:-8px 0 16px">Primero los que se te resisten</p>
+      <div id="porTexto"></div>
+      <button class="btn" id="btnResetTodo" style="margin-top:22px">Reiniciar el marcador</button>
+    </div>
+  </section>
+
+  <!-- ══════════ TEXTOS ══════════ -->
+  <section id="vista-textos" class="hidden">
+    <div class="card">
+      <h2>Agregar textos</h2>
+      <div class="chips" id="chipsAlta">
+        <div class="chip on" tabindex="0" role="button" data-alta="libro">Un libro entero</div>
+        <div class="chip" tabindex="0" role="button" data-alta="cuento">Un cuento suelto</div>
+      </div>
+
+      <!-- ── libro entero ── -->
+      <div id="altaLibro">
+        <label for="inLibroTodo">Libro</label>
+        <input id="inLibroTodo" list="librosSugeridos" placeholder="Ficciones" autocomplete="off">
+        <label for="inTextoLibro">Texto del libro completo</label>
+        <textarea id="inTextoLibro" placeholder="Pegá acá el libro entero, con los títulos de los cuentos tal como aparecen…"></textarea>
+        <div class="vs" id="conteoLibro" style="margin:12px 0 16px"></div>
+        <button class="btn fuerte full" id="btnDetectar">Detectar cuentos</button>
+
+        <div id="preview"></div>
+        <button class="btn fuerte full hidden" id="btnImportarLibro" style="margin-top:14px">Importar los seleccionados</button>
+
+        <p class="aviso">
+          De <b>Ficciones</b> y <b>El Aleph</b> conoce el índice, así que corta por los títulos.
+          Para cualquier otro libro los busca solo: líneas cortas y sueltas entre párrafos.
+          En los dos casos revisás la lista antes de importar.
+        </p>
+      </div>
+
+      <!-- ── un cuento ── -->
+      <div id="altaCuento" class="hidden">
+        <div class="row">
+          <div>
+            <label for="inLibro">Libro</label>
+            <input id="inLibro" list="librosSugeridos" placeholder="Ficciones" autocomplete="off">
+          </div>
+          <div>
+            <label for="inCuento">Título del cuento</label>
+            <input id="inCuento" placeholder="Las ruinas circulares" autocomplete="off">
+          </div>
+        </div>
+        <label for="inTexto">Texto completo (se parte solo en oraciones)</label>
+        <textarea id="inTexto" placeholder="Pegá acá el cuento entero…"></textarea>
+        <div class="vs" id="conteo" style="margin:12px 0 16px"></div>
+        <button class="btn fuerte full" id="btnGuardarTexto">Guardar texto</button>
+      </div>
+
+      <datalist id="librosSugeridos"></datalist>
+      <p class="aviso">
+        Los textos se guardan <b>en este navegador</b>, no en el repositorio: no se publican.
+        Para tenerlos en otro dispositivo, usá exportar / importar.
+        Si preferís un archivo, dejá tu copia en <code>borges/corpus.js</code> (está en el <code>.gitignore</code>).
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Textos cargados</h2>
+      <div id="listaTextos"></div>
+      <div class="row" style="margin-top:22px">
+        <button class="btn" id="btnExportar">Exportar JSON</button>
+        <button class="btn" id="btnImportar">Importar JSON</button>
+      </div>
+      <input type="file" id="fileImportar" accept=".json,application/json" class="hidden">
+    </div>
+  </section>
+</div>
+
+<script src="corpus.js" onerror="window.__sinCorpusJs=true"></script>
+<script>
+/* ══════════════════════════════════════════════════════════
+   ¿De qué texto es? — juego de oraciones
+   Motor: parte los textos en oraciones, muestra una al azar y
+   deja pedir hasta dos oraciones más (tres en total).
+   ══════════════════════════════════════════════════════════ */
+
+const CLAVE_TEXTOS = 'borges-textos-v1';
+const CLAVE_STATS  = 'borges-stats-v1';
+const CLAVE_PREFS  = 'borges-prefs-v1';
+const CLAVE_TEXTO  = 'borges-portexto-v1';
+
+/* ---------- almacenamiento ---------- */
+function leer(clave, porDefecto){
+  try{ const v = localStorage.getItem(clave); return v ? JSON.parse(v) : porDefecto; }
+  catch(e){ return porDefecto; }
+}
+function guardar(clave, valor){
+  try{ localStorage.setItem(clave, JSON.stringify(valor)); }catch(e){}
+}
+
+let textos = leer(CLAVE_TEXTOS, []);
+let stats  = leer(CLAVE_STATS, {puntos:0, racha:0, mejorRacha:0, aciertos:0, jugadas:0});
+let prefs  = leer(CLAVE_PREFS, {modo:'facil', libros:null});
+/* la cuenta de cada texto va por libro y título, no por id: así sobrevive
+   a que se vuelva a generar el corpus */
+let porTexto = leer(CLAVE_TEXTO, {});
+const claveTexto = (t) => t.libro + '|' + t.cuento;
+
+/* textos que vengan de corpus.js (archivo local, no versionado) */
+if (window.CORPUS_BORGES && Array.isArray(window.CORPUS_BORGES.textos)) {
+  const yaEsta = (t) => textos.some(x => x.libro === t.libro && x.cuento === t.cuento);
+  window.CORPUS_BORGES.textos.forEach(t => {
+    if (t && t.libro && t.cuento && t.texto && !yaEsta(t)) {
+      textos.push({id:'archivo-'+t.libro+'-'+t.cuento, libro:t.libro, cuento:t.cuento, texto:t.texto, deArchivo:true});
+    }
+  });
+}
+
+/* ---------- partir en oraciones ---------- */
+const ABREVIATURAS = new Set([
+  'sr','sra','srta','dr','dra','ing','lic','prof','profa','etc','vol','pág','pag','págs','cap',
+  'fig','núm','num','ed','eds','trad','p','pp','op','cit','cf','ss','vs','st','mr','mrs','ms','ca','ibíd','ibid'
+]);
+
+function terminaEnAbreviatura(s){
+  if(!/[.]$/.test(s)) return false;
+  const palabra = s.slice(0,-1).split(/[\s(«"'“¿¡—-]+/).pop().toLowerCase();
+  if(!palabra) return false;
+  if(palabra.length === 1) return true;                 // iniciales: J. L. Borges
+  if(/^\d+$/.test(palabra)) return false;
+  return ABREVIATURAS.has(palabra.replace(/\.$/,''));
+}
+
+function partirOraciones(texto){
+  const parrafos = String(texto||'')
+    .replace(/\r/g,'')
+    .split(/\n+/)
+    .map(p => p.replace(/[ \t ]+/g,' ').trim())
+    .filter(Boolean);
+
+  const oraciones = [];
+  parrafos.forEach(parrafo => {
+    let trozos;
+    try{
+      trozos = parrafo.split(/(?<=[.!?…][»”"')\]]*)\s+(?=[«¿¡"(“A-ZÁÉÍÓÚÜÑ0-9])/);
+    }catch(e){                                          // navegador sin lookbehind
+      trozos = parrafo.split(/([.!?…]+["»”')\]]*)\s+/).reduce((acc,p,i,arr)=>{
+        if(i%2===0){ acc.push((p||'') + (arr[i+1]||'')); } return acc;
+      },[]).filter(s=>s.trim());
+    }
+    trozos.forEach(t => {
+      const s = t.trim();
+      if(!s) return;
+      const previa = oraciones[oraciones.length-1];
+      const mismaParrafo = previa && previa.parrafo === parrafo;
+      if(mismaParrafo && (terminaEnAbreviatura(previa.txt) || previa.txt.length < 3)){
+        previa.txt += ' ' + s;
+      }else{
+        oraciones.push({txt:s, parrafo:parrafo});
+      }
+    });
+  });
+  return oraciones.map(o => o.txt);
+}
+
+/* cache de oraciones por texto */
+const cacheOraciones = new Map();
+function oracionesDe(t){
+  if(!cacheOraciones.has(t.id)) cacheOraciones.set(t.id, partirOraciones(t.texto));
+  return cacheOraciones.get(t.id);
+}
+
+/* ---------- partir un libro en cuentos ---------- */
+/* Los índices de estos dos libros vienen puestos: son los títulos por los
+   que hay que cortar. Para cualquier otro libro se detectan solos. */
+const INDICES = {
+  'ficciones': [
+    'Prólogo',
+    'Tlön, Uqbar, Orbis Tertius',
+    'El acercamiento a Almotásim',
+    'Pierre Menard, autor del Quijote',
+    'Las ruinas circulares',
+    'La lotería en Babilonia',
+    'Examen de la obra de Herbert Quain',
+    'La Biblioteca de Babel',
+    'El jardín de senderos que se bifurcan',
+    'Funes el memorioso',
+    'La forma de la espada',
+    'Tema del traidor y del héroe',
+    'La muerte y la brújula',
+    'El milagro secreto',
+    'Tres versiones de Judas',
+    'El fin',
+    'La secta del Fénix',
+    'El Sur'
+  ],
+  'el aleph': [
+    'El inmortal',
+    'El muerto',
+    'Los teólogos',
+    'Historia del guerrero y de la cautiva',
+    'Biografía de Tadeo Isidoro Cruz',
+    'Emma Zunz',
+    'La casa de Asterión',
+    'La otra muerte',
+    'Deutsches Requiem',
+    'La busca de Averroes',
+    'El Zahir',
+    'La escritura del dios',
+    'Abenjacán el Bojarí, muerto en su laberinto',
+    'Los dos reyes y los dos laberintos',
+    'La espera',
+    'El hombre en el umbral',
+    'El Aleph',
+    'La intrusa',
+    'Epílogo'
+  ]
+};
+const NO_SON_CUENTOS = new Set(['prologo','epilogo','posdata','indice','nota preliminar']);
+const MINIMO_CUENTO = 400;   // menos que esto es una línea de índice, no un cuento
+
+function normalizar(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+
+/* títulos de un libro conocido, o null */
+function indiceDe(libro){
+  return INDICES[normalizar(libro).replace(/\s+/g,' ')] || null;
+}
+
+/* ¿esta línea es el título "titulo"? */
+function esTitulo(linea, titulo){
+  const l = normalizar(linea), t = normalizar(titulo);
+  if(!l) return false;
+  if(l === t) return true;
+  // tolera el año o las fechas pegados al título: "Biografía… (1829-1874)"
+  return l.startsWith(t) && l.length - t.length <= 22;
+}
+
+/* detección genérica: línea corta y suelta, con un párrafo debajo */
+function pareceTitulo(lineas, i){
+  const l = (lineas[i]||'').trim();
+  if(!l || l.length > 70) return false;
+  if(/[.,;:]$/.test(l)) return false;
+  if(/^[a-záéíóúüñ]/.test(l)) return false;
+  if(!/[a-záéíóúüñ]/i.test(l)) return false;             // números sueltos, no
+  if(i > 0 && (lineas[i-1]||'').trim()) return false;    // tiene que venir de un blanco
+  for(let j = i+1; j < Math.min(i+4, lineas.length); j++){
+    const sig = (lineas[j]||'').trim();
+    if(!sig) continue;
+    return sig.length > 80;                              // debajo hay un párrafo, no otro título
+  }
+  return false;
+}
+
+function partirLibro(libro, texto){
+  const lineas = String(texto||'').replace(/\r/g,'').split('\n');
+  const titulos = indiceDe(libro);
+  const cortes = [];
+
+  if(titulos){
+    lineas.forEach((linea, i) => {
+      for(const t of titulos){
+        if(esTitulo(linea, t)){ cortes.push({i, cuento:t}); break; }
+      }
+    });
+  }else{
+    lineas.forEach((linea, i) => {
+      if(pareceTitulo(lineas, i)) cortes.push({i, cuento:linea.trim()});
+    });
+  }
+  if(!cortes.length) return [];
+
+  // el cuerpo de cada corte va hasta el corte siguiente
+  let piezas = cortes.map((c, k) => {
+    const hasta = k+1 < cortes.length ? cortes[k+1].i : lineas.length;
+    let cuerpo = lineas.slice(c.i+1, hasta);
+    // saco encabezados de sección que quedaron colgando al final ("ARTIFICIOS (1944)")
+    while(cuerpo.length){
+      const ult = cuerpo[cuerpo.length-1].trim();
+      if(!ult){ cuerpo.pop(); continue; }
+      if(ult.length < 60 && !/[.!?…][»”")\]]*$/.test(ult)){ cuerpo.pop(); continue; }
+      break;
+    }
+    return {cuento:c.cuento, texto:cuerpo.join('\n').trim()};
+  });
+
+  // fuera las líneas del índice del principio: no arrastran texto
+  piezas = piezas.filter(p => p.texto.length >= MINIMO_CUENTO);
+
+  // si un título quedó dos veces, el bueno es el del cuerpo más largo
+  const porTitulo = new Map();
+  piezas.forEach(p => {
+    const clave = normalizar(p.cuento);
+    const previa = porTitulo.get(clave);
+    if(!previa || p.texto.length > previa.texto.length){
+      if(previa) previa.duda = true;
+      porTitulo.set(clave, p);
+    }else{
+      p.duda = true;
+    }
+  });
+
+  return piezas.map(p => {
+    const oraciones = partirOraciones(p.texto);
+    const esCuento = !NO_SON_CUENTOS.has(normalizar(p.cuento));
+    return {
+      cuento: p.cuento,
+      texto: p.texto,
+      oraciones: oraciones.length,
+      arranque: oraciones[0] || '',
+      duda: !!p.duda,
+      incluir: !p.duda && esCuento && oraciones.length >= 3
+    };
+  });
+}
+
+/* ---------- previsualización del libro ---------- */
+let deteccion = null;
+
+function detectar(){
+  const libro = $('inLibroTodo').value.trim();
+  const texto = $('inTextoLibro').value;
+  if(!libro){ alert('Poné el nombre del libro.'); return; }
+  if(!texto.trim()){ alert('Falta pegar el texto del libro.'); return; }
+
+  deteccion = partirLibro(libro, texto);
+  if(!deteccion.length){
+    $('preview').innerHTML = '<div class="vacio">No se encontraron títulos.<br>' +
+      'Revisá que cada título esté en su propia línea, o cargá los cuentos de a uno.</div>';
+    $('btnImportarLibro').classList.add('hidden');
+    return;
+  }
+  pintarPreview();
+}
+
+function pintarPreview(){
+  const n = deteccion.filter(d => d.incluir).length;
+  $('preview').innerHTML =
+    `<div class="prev">
+       <div class="prev-cab">
+         <span>${deteccion.length} títulos encontrados</span>
+         <span><a data-todos="1">todos</a> · <a data-todos="0">ninguno</a></span>
+       </div>
+       ${deteccion.map((d,i) => `
+         <label class="prev-fila ${d.duda?'duda':''}">
+           <input type="checkbox" data-i="${i}" ${d.incluir?'checked':''}>
+           <span class="t">
+             <b>${esc(d.cuento)}</b>
+             <span class="small muted"> · ${d.oraciones} oraciones</span>
+             <span class="frase">${esc(d.arranque.slice(0,110))}</span>
+           </span>
+         </label>`).join('')}
+     </div>`;
+
+  $('preview').querySelectorAll('input[data-i]').forEach(c => {
+    c.onchange = () => { deteccion[+c.dataset.i].incluir = c.checked; actualizarBotonImportar(); };
+  });
+  $('preview').querySelectorAll('a[data-todos]').forEach(a => {
+    a.onclick = () => {
+      const v = a.dataset.todos === '1';
+      deteccion.forEach(d => d.incluir = v && d.oraciones >= 3);
+      pintarPreview();
+    };
+  });
+  actualizarBotonImportar();
+}
+
+function actualizarBotonImportar(){
+  const n = deteccion.filter(d => d.incluir).length;
+  const btn = $('btnImportarLibro');
+  btn.classList.remove('hidden');
+  btn.disabled = n === 0;
+  btn.textContent = n ? `Importar ${n} ${n===1?'cuento':'cuentos'}` : 'No hay nada seleccionado';
+}
+
+function importarLibro(){
+  const libro = $('inLibroTodo').value.trim();
+  const elegidos = deteccion.filter(d => d.incluir);
+  if(!elegidos.length) return;
+
+  const pisados = elegidos.filter(d => textos.some(t => t.libro === libro && t.cuento === d.cuento));
+  if(pisados.length && !confirm(`Ya hay ${pisados.length} de estos cuentos en ${libro}. ¿Reemplazarlos?`)) return;
+
+  let sumados = 0;
+  elegidos.forEach(d => {
+    const previo = textos.find(t => t.libro === libro && t.cuento === d.cuento);
+    if(previo){ textos = textos.filter(t => t !== previo); cacheOraciones.delete(previo.id); }
+    textos.push({id:'txt-' + Date.now() + '-' + azar(999999), libro, cuento:d.cuento, texto:d.texto});
+    sumados++;
+  });
+  persistirTextos();
+  pintarTextos();
+
+  deteccion = null;
+  $('preview').innerHTML = '';
+  $('btnImportarLibro').classList.add('hidden');
+  $('inTextoLibro').value = '';
+  $('conteoLibro').textContent = '';
+  alert(`Listo: se cargaron ${sumados} cuentos de ${libro}.`);
+  if(!ronda) nuevaRonda();
+}
+
+/* ---------- utilidades ---------- */
+const $ = (id) => document.getElementById(id);
+const azar = (n) => Math.floor(Math.random()*n);
+function mezclar(a){ const b=a.slice(); for(let i=b.length-1;i>0;i--){ const j=azar(i+1); [b[i],b[j]]=[b[j],b[i]]; } return b; }
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function librosDisponibles(){
+  return [...new Set(textos.map(t => t.libro))].sort((a,b)=>a.localeCompare(b,'es'));
+}
+/* de arranque se juega con los dos libros de cuentos; el resto se suma a mano */
+const LIBROS_POR_DEFECTO = ['Ficciones', 'El Aleph'];
+function librosElegidos(){
+  const disp = librosDisponibles();
+  if(!prefs.libros){
+    const preferidos = disp.filter(l => LIBROS_POR_DEFECTO.includes(l));
+    return preferidos.length ? preferidos : disp;
+  }
+  const elegidos = prefs.libros.filter(l => disp.includes(l));
+  return elegidos.length ? elegidos : disp;
+}
+function textosEnJuego(){
+  const libros = librosElegidos();
+  return textos.filter(t => libros.includes(t.libro) && oracionesDe(t).length >= 3);
+}
+
+/* ---------- el sorteo ---------- */
+const VACIAS = new Set(['el','la','los','las','un','una','unos','unas','de','del','al','y','o',
+  'en','con','por','para','sin','sobre','entre','que','como','su','sus','lo','se','otro','otra']);
+
+let bolsa = [], bolsaClave = '';
+
+/* saca textos sin reponer: no repite ninguno hasta haber pasado por todos */
+function proximoTexto(posibles){
+  const clave = posibles.map(t => t.id).sort().join('|');
+  if(clave !== bolsaClave){ bolsaClave = clave; bolsa = []; }
+  if(!bolsa.length){
+    bolsa = mezclar(posibles.map(t => t.id));
+    if(bolsa.length > 1 && bolsa[0] === ultimoCuento) bolsa.push(bolsa.shift());
+  }
+  const id = bolsa.shift();
+  return posibles.find(t => t.id === id) || posibles[azar(posibles.length)];
+}
+
+/* palabras del título que delatarían la respuesta */
+function clavesDelTitulo(cuento){
+  return normalizar(cuento).split(' ').filter(p => p.length > 3 && !VACIAS.has(p));
+}
+function regala(oracion, claves){
+  if(!claves.length) return false;
+  const palabras = normalizar(oracion).split(' ');
+  return claves.some(c => palabras.some(p => p.startsWith(c.slice(0, 5))));
+}
+
+/* dónde empezar: una oración con cuerpo, que no nombre el título y que no
+   haya salido todavía. Los textos cortos tienen pocos arranques posibles
+   —Los dos reyes tiene 8, Tlön 258— así que sin memoria se repiten enseguida.
+   Si nombrar el título es inevitable, se juega igual: mejor eso que no jugar. */
+const arranquesUsados = new Map();
+
+function arranque(texto, oraciones){
+  const tope = oraciones.length - 3;
+  const conCuerpo = [];
+  for(let i = 0; i <= tope; i++) if(oraciones[i].length >= 45) conCuerpo.push(i);
+  const base = conCuerpo.length ? conCuerpo : Array.from({length: tope + 1}, (_, i) => i);
+  const claves = clavesDelTitulo(texto.cuento);
+  const limpios = base.filter(i => !regala(oraciones[i], claves));
+  let pozo = limpios.length ? limpios : base;
+
+  const usados = arranquesUsados.get(texto.id) || new Set();
+  const frescos = pozo.filter(i => !usados.has(i));
+  if(frescos.length) pozo = frescos; else usados.clear();   // dio la vuelta entera
+
+  const inicio = pozo[azar(pozo.length)];
+  usados.add(inicio);
+  arranquesUsados.set(texto.id, usados);
+  return inicio;
+}
+
+/* los distractores salen del mismo libro: si no, el rótulo de abajo
+   descarta media lista sin haber leído nada */
+const OPCIONES = 6;
+function distractores(posibles, correcto){
+  const faltan = OPCIONES - 1;
+  const hermanos = posibles.filter(t => t.id !== correcto.id && t.libro === correcto.libro);
+  const elegidos = mezclar(hermanos).slice(0, faltan);
+  if(elegidos.length < faltan){
+    const resto = posibles.filter(t => t.id !== correcto.id && !elegidos.includes(t));
+    elegidos.push(...mezclar(resto).slice(0, faltan - elegidos.length));
+  }
+  return elegidos;
+}
+
+/* ---------- estado de la ronda ---------- */
+let ronda = null;   // {texto, oraciones:[3], mostradas:1, respondido:bool}
+let ultimoCuento = null;
+
+function nuevaRonda(){
+  const posibles = textosEnJuego();
+  if(!posibles.length){ pintarVacio(); return; }
+
+  const texto = proximoTexto(posibles);
+  ultimoCuento = texto.id;
+
+  const oraciones = oracionesDe(texto);
+  const inicio = arranque(texto, oraciones);
+
+  ronda = {
+    texto,
+    oraciones: oraciones.slice(inicio, inicio + 3),
+    inicio,
+    total: oraciones.length,
+    mostradas: 1,
+    respondido: false
+  };
+  pintarRonda();
+}
+
+function pintarVacio(){
+  $('cardVacio').classList.remove('hidden');
+  $('cardJuego').classList.add('hidden');
+  ronda = null;
+  $('cardVacio').querySelector('.vacio').innerHTML = textos.length
+    ? 'No hay textos jugables con los libros elegidos.<br>Cada texto necesita al menos tres oraciones.'
+    : 'Todavía no hay textos cargados.<br>Andá a <b>Textos</b> y cargá un libro para empezar a jugar.';
+}
+
+/* el fragmento, y al terminar la ronda el pasaje alrededor */
+const VECINAS = 6;
+function pintarFragmento(){
+  const frag = $('frag');
+  if(!ronda.pasaje){
+    frag.innerHTML = ronda.oraciones.slice(0, ronda.mostradas).map((o,i) =>
+      `<p class="${i===ronda.mostradas-1?'nueva':''} n${i+1}"><span class="nro">${i+1}</span>${esc(o)}</p>`
+    ).join('');
+    return;
+  }
+  const todas = oracionesDe(ronda.texto);
+  const desde = Math.max(0, ronda.inicio - VECINAS);
+  const hasta = Math.min(todas.length, ronda.inicio + 3 + VECINAS);
+  frag.innerHTML = todas.slice(desde, hasta).map((o, k) => {
+    const i = desde + k - ronda.inicio;          // 0,1,2 son las del fragmento
+    return (i >= 0 && i < 3)
+      ? `<p class="n${i+1}"><span class="nro">${i+1}</span>${esc(o)}</p>`
+      : `<p class="ctx">${esc(o)}</p>`;
+  }).join('');
+}
+
+function pintarRonda(){
+  $('cardVacio').classList.add('hidden');
+  $('cardJuego').classList.remove('hidden');
+  pintarFragmento();
+
+  $('btnPasaje').classList.add('hidden');
+  const quedan = 3 - ronda.mostradas;
+  $('btnMas').textContent = quedan ? `Oración siguiente (${quedan} más)` : 'No hay más oraciones';
+  $('btnMas').disabled = quedan === 0 || ronda.respondido;
+  $('btnRindo').disabled = ronda.respondido;
+
+  $('resultado').innerHTML = '';
+  $('acciones').classList.remove('hidden');
+  $('atajos').classList.remove('hidden');
+  $('btnOtra').classList.add('hidden');
+  $('zonaRespuesta').classList.remove('hidden');
+  pintarRespuesta();
+}
+
+/* ---------- opciones ---------- */
+function pintarRespuesta(){
+  const facil = prefs.modo === 'facil';
+  $('opciones').classList.toggle('hidden', !facil);
+  $('zonaDificil').classList.toggle('hidden', facil);
+  facil ? pintarOpciones() : pintarBuscador();
+}
+
+function pintarOpciones(){
+  if(!ronda.opciones){
+    const correcto = ronda.texto;
+    ronda.opciones = mezclar([correcto, ...distractores(textosEnJuego(), correcto)]);
+  }
+
+  // si las cuatro son del mismo libro, el rótulo no distingue nada: sobra
+  const variosLibros = new Set(ronda.opciones.map(t => t.libro)).size > 1;
+  $('opciones').innerHTML = ronda.opciones.map((t,i) =>
+    `<button class="op" data-i="${i}">${esc(t.cuento)}` +
+    (variosLibros ? `<span class="lib">${esc(t.libro)}</span>` : '') + `</button>`
+  ).join('');
+  $('opciones').querySelectorAll('.op').forEach(b => {
+    b.onclick = () => responder(ronda.opciones[+b.dataset.i]);
+  });
+}
+
+/* ---------- modo difícil: escribir el título ---------- */
+/* plano() conserva la posición de cada letra, así se puede resaltar
+   la parte que coincide sobre el título original */
+function plano(s){
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+}
+
+let elegido = null, sugeridos = [], resaltado = -1;
+
+function buscarTitulos(consulta){
+  const q = plano(consulta).trim();
+  if(!q) return [];
+  const puntaje = (t) => {
+    const titulo = plano(t.cuento);
+    if(titulo.startsWith(q)) return 0;
+    if(titulo.split(/[^a-z0-9]+/).some(p => p.startsWith(q))) return 1;
+    return titulo.includes(q) ? 2 : -1;
+  };
+  return textosEnJuego().map(t => ({t, p: puntaje(t)}))
+    .filter(x => x.p >= 0)
+    .sort((a,b) => a.p - b.p || a.t.cuento.localeCompare(b.t.cuento, 'es'))
+    .slice(0, 8)
+    .map(x => x.t);
+}
+
+function pintarBuscador(){
+  $('inAdivinar').value = '';
+  $('inAdivinar').disabled = false;
+  $('btnAdivinar').disabled = true;
+  $('btnAdivinar').textContent = 'Adivinar';
+  elegido = null; sugeridos = []; resaltado = -1;
+  $('sugerencias').innerHTML = '';
+}
+
+function pintarSugerencias(){
+  const consulta = $('inAdivinar').value;
+  sugeridos = buscarTitulos(consulta);
+  resaltado = sugeridos.length ? 0 : -1;
+
+  if(!consulta.trim()){ $('sugerencias').innerHTML = ''; return; }
+  if(!sugeridos.length){
+    $('sugerencias').innerHTML = '<div class="nada">Ningún título con esas letras.</div>';
+    return;
+  }
+
+  const q = plano(consulta).trim();
+  const variosLibros = new Set(textosEnJuego().map(t => t.libro)).size > 1;
+  $('sugerencias').innerHTML = sugeridos.map((t,i) => {
+    const desde = plano(t.cuento).indexOf(q);
+    const titulo = desde < 0 ? esc(t.cuento)
+      : esc(t.cuento.slice(0, desde)) + '<b>' + esc(t.cuento.slice(desde, desde + q.length)) +
+        '</b>' + esc(t.cuento.slice(desde + q.length));
+    return `<button data-i="${i}" class="${i === resaltado ? 'on' : ''}"><span>${titulo}</span>` +
+           (variosLibros ? `<span class="lib">${esc(t.libro)}</span>` : '') + `</button>`;
+  }).join('');
+
+  $('sugerencias').querySelectorAll('button').forEach(b => {
+    b.onmousedown = (e) => { e.preventDefault(); elegirSugerencia(+b.dataset.i); };
+  });
+}
+
+function elegirSugerencia(i){
+  const t = typeof i === 'number' ? sugeridos[i] : i;
+  if(!t) return;
+  elegido = t;
+  $('inAdivinar').value = t.cuento;
+  $('sugerencias').innerHTML = '';
+  sugeridos = []; resaltado = -1;
+  $('btnAdivinar').disabled = false;
+  $('btnAdivinar').textContent = 'Adivinar: ' + t.cuento;
+}
+
+function moverResaltado(paso){
+  if(!sugeridos.length) return;
+  resaltado = (resaltado + paso + sugeridos.length) % sugeridos.length;
+  $('sugerencias').querySelectorAll('button').forEach((b,i) => b.classList.toggle('on', i === resaltado));
+}
+
+/* si escribió el título entero sin tocar la lista, vale igual */
+function resolverEscrito(){
+  if(elegido) return elegido;
+  const q = plano($('inAdivinar').value).trim();
+  if(!q) return null;
+  const exacto = textosEnJuego().find(t => plano(t.cuento) === q);
+  if(exacto) return exacto;
+  return sugeridos.length === 1 ? sugeridos[0] : null;
+}
+
+/* ---------- responder ---------- */
+function responder(elegido){
+  if(ronda.respondido) return;
+  const acierto = elegido && elegido.id === ronda.texto.id;
+  // 3·2·1 según cuántas oraciones hicieron falta, y el doble en difícil:
+  // acertar entre todos los títulos no puede pagar lo mismo que entre seis
+  const puntos = acierto ? (4 - ronda.mostradas) * (prefs.modo === 'dificil' ? 2 : 1) : 0;
+
+  ronda.respondido = true;
+  stats.jugadas++;
+  if(acierto){
+    stats.aciertos++;
+    stats.puntos += puntos;
+    stats.racha++;
+    stats.mejorRacha = Math.max(stats.mejorRacha, stats.racha);
+  }else{
+    stats.racha = 0;
+  }
+  guardar(CLAVE_STATS, stats);
+  anotarTexto(acierto);
+  pintarMarcador();
+  mostrarResultado(acierto, puntos, elegido);
+}
+
+function rendirse(){
+  if(ronda.respondido) return;
+  ronda.respondido = true;
+  stats.jugadas++;
+  stats.racha = 0;
+  guardar(CLAVE_STATS, stats);
+  anotarTexto(false);
+  pintarMarcador();
+  mostrarResultado(false, 0, null);
+}
+
+function mostrarResultado(acierto, puntos, elegido){
+  $('acciones').classList.add('hidden');
+  $('atajos').classList.add('hidden');
+
+  if(prefs.modo === 'facil'){
+    $('opciones').querySelectorAll('.op').forEach((b,i) => {
+      b.disabled = true;
+      const t = ronda.opciones[i];
+      if(t.id === ronda.texto.id) b.classList.add('bien');
+      else if(elegido && t.id === elegido.id) b.classList.add('mal');
+    });
+  }else{
+    $('inAdivinar').disabled = true;
+    $('btnAdivinar').disabled = true;
+    $('sugerencias').innerHTML = '';
+  }
+
+  const donde = ubicacion(ronda);
+  const titulo = acierto
+    ? `✓ ¡Bien! +${puntos} ${puntos===1?'punto':'puntos'}`
+    : (elegido ? '✗ No era' : 'La respuesta era');
+
+  $('resultado').innerHTML =
+    `<div class="resultado ${acierto?'bien':'mal'}">
+       <h3>${titulo}</h3>
+       <div class="dato"><em>${esc(ronda.texto.cuento)}</em></div>
+       <div class="donde">${esc(ronda.texto.libro)} · ${donde}</div>
+     </div>`;
+
+  $('zonaRespuesta').classList.add('hidden');
+  $('btnOtra').classList.remove('hidden');
+  $('btnPasaje').classList.remove('hidden');
+  $('btnPasaje').textContent = 'Ver el pasaje completo';
+  pintarMarcadorLargo();
+}
+
+function ubicacion(r){
+  const pos = r.inicio / Math.max(1, r.total - 3);
+  if(r.inicio === 0) return 'las primeras líneas';
+  if(r.inicio + 3 >= r.total) return 'el final';
+  if(pos < .34) return 'el comienzo';
+  if(pos < .67) return 'la mitad';
+  return 'el tramo final';
+}
+
+/* ---------- marcador ---------- */
+function pintarMarcador(){
+  $('mPuntos').textContent = stats.puntos;
+  $('mRacha').textContent = stats.racha;
+  $('mAciertos').textContent = stats.aciertos;
+  $('mJugadas').textContent = stats.jugadas;
+}
+
+function anotarTexto(acierto){
+  const k = claveTexto(ronda.texto);
+  const c = porTexto[k] || {j:0, a:0};
+  c.j++; if(acierto) c.a++;
+  porTexto[k] = c;
+  guardar(CLAVE_TEXTO, porTexto);
+}
+
+function pintarMarcadorLargo(){
+  const pct = stats.jugadas ? Math.round(100 * stats.aciertos / stats.jugadas) : 0;
+  $('resumen').innerHTML = [
+    ['Puntos', stats.puntos],
+    ['Aciertos', stats.jugadas ? `${stats.aciertos} de ${stats.jugadas} · ${pct}%` : '—'],
+    ['Racha', stats.racha],
+    ['Mejor racha', stats.mejorRacha || 0]
+  ].map(([q, v]) => `<tr><td>${q}</td><td class="der">${esc(String(v))}</td></tr>`).join('');
+
+  const filas = Object.entries(porTexto)
+    .map(([k, c]) => {
+      const [libro, cuento] = k.split('|');
+      return {libro, cuento, ...c, tasa: c.a / c.j};
+    })
+    .sort((x, y) => x.tasa - y.tasa || y.j - x.j || x.cuento.localeCompare(y.cuento, 'es'));
+
+  $('porTexto').innerHTML = filas.length
+    ? filas.map(f => `
+        <div class="cuenta ${f.tasa === 1 ? 'bien' : (f.tasa === 0 ? 'mal' : '')}">
+          <span class="q">${esc(f.cuento)}<br><span class="vs">${esc(f.libro)}</span></span>
+          <span class="r">${f.a} de ${f.j}</span>
+        </div>`).join('')
+    : '<div class="vacio">Todavía no jugaste ninguna ronda.</div>';
+}
+
+/* ---------- textos ---------- */
+function pintarTextos(){
+  const cont = $('listaTextos');
+  if(!textos.length){
+    cont.innerHTML = '<div class="vacio">Todavía no cargaste ningún texto.</div>';
+  }else{
+    const orden = textos.slice().sort((a,b) =>
+      a.libro.localeCompare(b.libro,'es') || a.cuento.localeCompare(b.cuento,'es'));
+    cont.innerHTML = '<table>' + orden.map(t => {
+      const n = oracionesDe(t).length;
+      const flojo = n < 3 ? ' · <span style="color:var(--err)">muy corto</span>' : '';
+      return `<tr>
+        <td><b style="font-weight:400">${esc(t.cuento)}</b><br><span class="vs">${esc(t.libro)} · ${n} oraciones${flojo}</span></td>
+        <td class="der">${t.deArchivo
+          ? '<span class="small muted">corpus.js</span>'
+          : `<button class="btn" data-borrar="${esc(t.id)}">Borrar</button>`}</td>
+      </tr>`;
+    }).join('') + '</table>';
+    cont.querySelectorAll('[data-borrar]').forEach(b => {
+      b.onclick = () => {
+        const t = textos.find(x => x.id === b.dataset.borrar);
+        if(t && confirm(`¿Borrar «${t.cuento}»?`)) borrarTexto(b.dataset.borrar);
+      };
+    });
+  }
+  $('librosSugeridos').innerHTML = librosDisponibles().map(l => `<option value="${esc(l)}">`).join('');
+  pintarChipsLibros();
+}
+
+function borrarTexto(id){
+  textos = textos.filter(t => t.id !== id);
+  cacheOraciones.delete(id);
+  persistirTextos();
+  pintarTextos();
+  if(ultimoCuento === id) ultimoCuento = null;
+  if(!textosEnJuego().length) pintarVacio(); else nuevaRonda();
+}
+
+function persistirTextos(){
+  guardar(CLAVE_TEXTOS, textos.filter(t => !t.deArchivo));
+}
+
+function agregarTexto(){
+  const libro  = $('inLibro').value.trim();
+  const cuento = $('inCuento').value.trim();
+  const texto  = $('inTexto').value.trim();
+  if(!libro || !cuento || !texto){ alert('Faltan el libro, el título o el texto.'); return; }
+
+  const oraciones = partirOraciones(texto);
+  if(oraciones.length < 3){ alert('El texto tiene menos de tres oraciones: el juego necesita al menos tres.'); return; }
+
+  const existente = textos.find(t => t.libro === libro && t.cuento === cuento);
+  if(existente && !confirm(`Ya hay un texto «${cuento}» en ${libro}. ¿Reemplazarlo?`)) return;
+  if(existente){ textos = textos.filter(t => t !== existente); cacheOraciones.delete(existente.id); }
+
+  const id = 'txt-' + Date.now() + '-' + azar(9999);
+  textos.push({id, libro, cuento, texto});
+  persistirTextos();
+  cacheOraciones.delete(id);
+
+  $('inCuento').value = '';
+  $('inTexto').value = '';
+  $('conteo').textContent = '';
+  pintarTextos();
+  alert(`Listo: «${cuento}» quedó cargado con ${oraciones.length} oraciones.`);
+  if(!ronda) nuevaRonda();
+}
+
+function exportar(){
+  const datos = {v:1, exportado:new Date().toISOString(), textos: textos.map(({libro,cuento,texto}) => ({libro,cuento,texto}))};
+  const blob = new Blob([JSON.stringify(datos, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'corpus-borges.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function importar(archivo){
+  const lector = new FileReader();
+  lector.onload = () => {
+    let datos;
+    try{ datos = JSON.parse(lector.result); }
+    catch(e){ alert('El archivo no es un JSON válido.'); return; }
+    const entrantes = Array.isArray(datos) ? datos : (datos.textos || []);
+    let sumados = 0;
+    entrantes.forEach(t => {
+      if(!t || !t.libro || !t.cuento || !t.texto) return;
+      if(textos.some(x => x.libro === t.libro && x.cuento === t.cuento)) return;
+      textos.push({id:'txt-' + Date.now() + '-' + azar(9999), libro:t.libro, cuento:t.cuento, texto:t.texto});
+      sumados++;
+    });
+    persistirTextos();
+    pintarTextos();
+    alert(sumados ? `Se agregaron ${sumados} texto(s).` : 'No había textos nuevos para agregar.');
+    if(!ronda) nuevaRonda();
+  };
+  lector.readAsText(archivo);
+}
+
+/* ---------- preferencias ---------- */
+function pintarChipsLibros(){
+  const disp = librosDisponibles();
+  const elegidos = librosElegidos();
+  $('chipsLibros').innerHTML = disp.length
+    ? disp.map(l => `<div class="chip ${elegidos.includes(l)?'on':''}" tabindex="0" role="button" data-libro="${esc(l)}">${esc(l)}</div>`).join('')
+    : '<span class="small muted">Cargá textos para elegir libros.</span>';
+  $('chipsLibros').querySelectorAll('.chip').forEach(c => {
+    c.onclick = () => {
+      const libro = c.dataset.libro;
+      let sel = librosElegidos().slice();
+      sel = sel.includes(libro) ? sel.filter(x => x !== libro) : sel.concat(libro);
+      if(!sel.length) return;                      // al menos uno
+      prefs.libros = sel;
+      guardar(CLAVE_PREFS, prefs);
+      pintarChipsLibros();
+      nuevaRonda();
+    };
+  });
+}
+
+function pintarChipsModo(){
+  $('chipsModo').querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('on', c.dataset.modo === prefs.modo);
+    c.onclick = () => {
+      prefs.modo = c.dataset.modo;
+      guardar(CLAVE_PREFS, prefs);
+      pintarChipsModo();
+      if(ronda && !ronda.respondido) pintarRespuesta();
+    };
+  });
+}
+
+/* ---------- vistas ---------- */
+function mostrarVista(v){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.vista === v));
+  ['jugar','marcador','textos'].forEach(x => $('vista-'+x).classList.toggle('hidden', x !== v));
+  if(v === 'marcador') pintarMarcadorLargo();
+  window.scrollTo(0,0);
+}
+
+/* ---------- eventos ---------- */
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => mostrarVista(t.dataset.vista));
+$('irATextos').onclick = () => mostrarVista('textos');
+
+$('btnMas').onclick = () => {
+  if(ronda.respondido || ronda.mostradas >= 3) return;
+  ronda.mostradas++;
+  pintarRonda();
+};
+$('btnRindo').onclick = rendirse;
+$('btnOtra').onclick = nuevaRonda;
+$('btnAdivinar').onclick = () => {
+  const t = resolverEscrito();
+  if(!t){ alert('Elegí un título de la lista.'); return; }
+  responder(t);
+};
+$('inAdivinar').addEventListener('input', () => {
+  elegido = null;
+  $('btnAdivinar').disabled = true;
+  $('btnAdivinar').textContent = 'Adivinar';
+  pintarSugerencias();
+  // si escribió el título completo, vale como elegido sin tocar la lista
+  const q = plano($('inAdivinar').value).trim();
+  const exacto = q && textosEnJuego().find(t => plano(t.cuento) === q);
+  if(exacto) elegirSugerencia(exacto);
+});
+$('inAdivinar').addEventListener('keydown', (e) => {
+  if(e.key === 'ArrowDown'){ e.preventDefault(); moverResaltado(1); }
+  else if(e.key === 'ArrowUp'){ e.preventDefault(); moverResaltado(-1); }
+  else if(e.key === 'Escape'){ $('sugerencias').innerHTML = ''; sugeridos = []; }
+  else if(e.key === 'Enter'){
+    e.preventDefault();
+    if(resaltado >= 0 && sugeridos.length){ elegirSugerencia(resaltado); return; }
+    const t = resolverEscrito();
+    if(t) responder(t);
+  }
+});
+$('btnResetTodo').onclick = () => {
+  if(!confirm('¿Reiniciar puntos, racha y la cuenta de cada texto?')) return;
+  stats = {puntos:0, racha:0, mejorRacha:0, aciertos:0, jugadas:0};
+  porTexto = {};
+  guardar(CLAVE_STATS, stats);
+  guardar(CLAVE_TEXTO, porTexto);
+  pintarMarcador();
+  pintarMarcadorLargo();
+};
+
+$('btnPasaje').onclick = () => {
+  ronda.pasaje = !ronda.pasaje;
+  pintarFragmento();
+  $('btnPasaje').textContent = ronda.pasaje ? 'Ver sólo el fragmento' : 'Ver el pasaje completo';
+};
+
+$('btnGuardarTexto').onclick = agregarTexto;
+$('btnDetectar').onclick = detectar;
+$('btnImportarLibro').onclick = importarLibro;
+
+document.querySelectorAll('#chipsAlta .chip').forEach(c => {
+  c.onclick = () => {
+    document.querySelectorAll('#chipsAlta .chip').forEach(x => x.classList.toggle('on', x === c));
+    $('altaLibro').classList.toggle('hidden', c.dataset.alta !== 'libro');
+    $('altaCuento').classList.toggle('hidden', c.dataset.alta !== 'cuento');
+  };
+});
+
+let tardanza;
+$('inTexto').addEventListener('input', () => {
+  clearTimeout(tardanza);
+  tardanza = setTimeout(() => {
+    const n = partirOraciones($('inTexto').value).length;
+    $('conteo').textContent = n ? `${n} oraciones detectadas` : '';
+  }, 200);
+});
+$('inTextoLibro').addEventListener('input', () => {
+  const n = $('inTextoLibro').value.length;
+  $('conteoLibro').textContent = n ? `${n.toLocaleString('es-AR')} caracteres pegados` : '';
+});
+$('btnExportar').onclick = exportar;
+$('btnImportar').onclick = () => $('fileImportar').click();
+$('fileImportar').onchange = (e) => { if(e.target.files[0]) importar(e.target.files[0]); e.target.value=''; };
+
+/* ---------- teclado ---------- */
+/* Enter y espacio activan las fichas, que son <div> */
+document.addEventListener('keydown', (e) => {
+  const desde = e.target;
+  if(desde && desde.classList && desde.classList.contains('chip') && (e.key === 'Enter' || e.key === ' ')){
+    e.preventDefault(); desde.click();
+  }
+});
+
+/* atajos de la partida */
+document.addEventListener('keydown', (e) => {
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  const etiqueta = ((e.target && e.target.tagName) || '').toLowerCase();
+  if(etiqueta === 'input' || etiqueta === 'textarea' || etiqueta === 'select') return;
+  if(!ronda || $('vista-jugar').classList.contains('hidden')) return;
+
+  if(e.key === 'Enter'){
+    if(ronda.respondido){ e.preventDefault(); $('btnOtra').click(); }
+    return;
+  }
+  if(e.key === ' '){
+    if(!ronda.respondido && !$('btnMas').disabled){ e.preventDefault(); $('btnMas').click(); }
+    return;
+  }
+  if(ronda.respondido || prefs.modo !== 'facil') return;
+  // a–f, y también 1–6
+  const letra = e.key.toLowerCase();
+  const i = /^[a-f]$/.test(letra) ? letra.charCodeAt(0) - 97
+          : /^[1-6]$/.test(letra) ? +letra - 1 : -1;
+  const boton = i >= 0 && $('opciones').querySelector(`.op[data-i="${i}"]`);
+  if(boton){ e.preventDefault(); boton.click(); }
+});
+
+/* ---------- arranque ---------- */
+/* sin conexión, servido desde Pages; en file:// no hay nada que registrar */
+if(location.protocol.startsWith('http') && 'serviceWorker' in navigator){
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
+pintarMarcador();
+pintarChipsModo();
+pintarTextos();
+if(textosEnJuego().length) nuevaRonda(); else pintarVacio();
+</script>
+</body>
+</html>

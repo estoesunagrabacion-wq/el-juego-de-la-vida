@@ -1,0 +1,7 @@
+# El corpus con los textos completos NO se publica.
+# Dejá tu copia local en corpus.js: el juego la levanta sola.
+corpus.js
+corpus.local.js
+
+# el .html armado lleva los textos adentro: tampoco se publica
+de-que-texto-es.html
