@@ -4,7 +4,7 @@
 // en el celular nunca queda vieja mientras haya señal, y sigue abriendo igual
 // cuando no hay internet.
 
-const CACHE = "vida-v1";
+const CACHE = "vida-v2"; // v2: íconos chicos rehechos y rediseño
 const ESENCIALES = [
   "./",
   "./index.html",
