@@ -42,8 +42,8 @@ abre la misma herramienta en su celular, sin instalar nada (cada uno usa su prop
 2. Elegí el **servicio de IA** y pegá tu **API key**:
    - **Google Gemini (gratis para empezar):** conseguí la clave en
      https://aistudio.google.com/app/apikey
-   - **OpenAI**, **Claude (Anthropic)** o **Grok (xAI)** también leen las fotos (pegás su clave).
-   - **DeepSeek** también sirve, pero **no lee fotos**: usalo solo para buscar por **ISBN o texto**.
+   - **Claude (Anthropic):** en console.anthropic.com — es de pago pero **estable** y funciona bien en el celular.
+   - ⚠️ **OpenAI, Grok y DeepSeek NO funcionan en la app del celular** (el navegador bloquea esas APIs por seguridad/CORS). Solo sirven en la **versión de escritorio**. En el celular usá **Gemini** o **Claude**.
 3. Ajustá la **etiqueta del título** (ej. `Microcentro`), la **moneda** y el modo de **precio**.
 4. Tocá **💾 Guardar configuración**. Listo (queda guardado en el teléfono).
 
