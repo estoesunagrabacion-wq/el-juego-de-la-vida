@@ -382,15 +382,32 @@ let prefs  = leer(CLAVE_PREFS, {modo:'facil', libros:null});
 let porTexto = leer(CLAVE_TEXTO, {});
 const claveTexto = (t) => t.libro + '|' + t.cuento;
 
+/* El id sale del libro y el título, que es lo que identifica a un texto.
+   Antes se armaba con la hora y un número al azar, y al importar decenas de
+   textos en el mismo milisegundo dos podían salir con el mismo id: el juego
+   los trataba como uno solo y daba por buena la respuesta equivocada. */
+function normalizarIds(){
+  const usados = new Set();
+  textos.forEach(t => {
+    const base = t.libro + '|' + t.cuento;
+    let id = base, n = 2;
+    while(usados.has(id)) id = base + ' (' + (n++) + ')';
+    usados.add(id);
+    t.id = id;
+  });
+}
+
 /* textos que vengan de corpus.js (archivo local, no versionado) */
 if (window.CORPUS_BORGES && Array.isArray(window.CORPUS_BORGES.textos)) {
   const yaEsta = (t) => textos.some(x => x.libro === t.libro && x.cuento === t.cuento);
   window.CORPUS_BORGES.textos.forEach(t => {
     if (t && t.libro && t.cuento && t.texto && !yaEsta(t)) {
-      textos.push({id:'archivo-'+t.libro+'-'+t.cuento, libro:t.libro, cuento:t.cuento, texto:t.texto, deArchivo:true});
+      textos.push({id:t.libro+'|'+t.cuento, libro:t.libro, cuento:t.cuento, texto:t.texto, deArchivo:true});
     }
   });
 }
+
+normalizarIds();
 
 /* ---------- partir en oraciones ---------- */
 const ABREVIATURAS = new Set([
@@ -663,9 +680,10 @@ function importarLibro(){
   elegidos.forEach(d => {
     const previo = textos.find(t => t.libro === libro && t.cuento === d.cuento);
     if(previo){ textos = textos.filter(t => t !== previo); cacheOraciones.delete(previo.id); }
-    textos.push({id:'txt-' + Date.now() + '-' + azar(999999), libro, cuento:d.cuento, texto:d.texto});
+    textos.push({libro, cuento:d.cuento, texto:d.texto});
     sumados++;
   });
+  normalizarIds();
   persistirTextos();
   pintarTextos();
 
@@ -1133,10 +1151,9 @@ function agregarTexto(){
   if(existente && !confirm(`Ya hay un texto «${cuento}» en ${libro}. ¿Reemplazarlo?`)) return;
   if(existente){ textos = textos.filter(t => t !== existente); cacheOraciones.delete(existente.id); }
 
-  const id = 'txt-' + Date.now() + '-' + azar(9999);
-  textos.push({id, libro, cuento, texto});
+  textos.push({libro, cuento, texto});
+  normalizarIds();
   persistirTextos();
-  cacheOraciones.delete(id);
 
   $('inCuento').value = '';
   $('inTexto').value = '';
@@ -1167,9 +1184,10 @@ function importar(archivo){
     entrantes.forEach(t => {
       if(!t || !t.libro || !t.cuento || !t.texto) return;
       if(textos.some(x => x.libro === t.libro && x.cuento === t.cuento)) return;
-      textos.push({id:'txt-' + Date.now() + '-' + azar(9999), libro:t.libro, cuento:t.cuento, texto:t.texto});
+      textos.push({libro:t.libro, cuento:t.cuento, texto:t.texto});
       sumados++;
     });
+    normalizarIds();
     persistirTextos();
     pintarTextos();
     alert(sumados ? `Se agregaron ${sumados} texto(s).` : 'No había textos nuevos para agregar.');
