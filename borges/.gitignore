@@ -5,3 +5,6 @@ corpus.local.js
 
 # el .html armado lleva los textos adentro: tampoco se publica
 de-que-texto-es*.html
+
+# restos de python
+__pycache__/
