@@ -78,7 +78,9 @@ Con `corpus.js` en su lugar:
 
     python3 armar-html.py
 
-deja un `de-que-texto-es.html` con el juego y los textos adentro. Anda con
+deja un `de-que-texto-es-AAAA-MM-DD.html` con el juego y los textos adentro.
+La fecha va en el nombre y además queda sellada al pie de la página, para
+poder distinguir una copia de otra en la carpeta de descargas. Anda con
 doble clic, sin servidor y sin conexión, y se pasa al celular por Drive o
 por mail sin tener que importar nada. Como lleva los textos, tampoco se
 versiona.

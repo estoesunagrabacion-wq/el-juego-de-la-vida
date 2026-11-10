@@ -10,10 +10,14 @@ autónomo: anda con doble clic, sin servidor y sin conexión.
 Ojo: lleva los textos adentro, así que no va al repositorio (está en el
 .gitignore). Es para tu copia y para pasarlo a tus dispositivos.
 """
-import json, sys, pathlib, re
+import json, sys, pathlib, re, datetime
 
 aca = pathlib.Path(__file__).parent
-salida = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else aca / 'de-que-texto-es.html'
+if len(sys.argv) > 1:
+    salida = pathlib.Path(sys.argv[1])
+else:
+    # la fecha en el nombre: si no, todas las copias se llaman igual
+    salida = aca / ('de-que-texto-es-%s.html' % datetime.date.today().isoformat())
 
 html = (aca / 'index.html').read_text(encoding='utf-8')
 fuente = aca / 'corpus.js'
@@ -40,6 +44,15 @@ if viejo not in html:
     sys.exit('index.html cambió: no encontré la etiqueta que carga corpus.js.')
 
 armado = html.replace(viejo, adentro)
+
+# sello, para distinguir una copia de otra en la carpeta de descargas
+MESES = ('enero febrero marzo abril mayo junio julio agosto septiembre '
+         'octubre noviembre diciembre').split()
+hoy = datetime.date.today()
+sello = 'Armado el %d de %s de %d · %d texto%s' % (
+    hoy.day, MESES[hoy.month - 1], hoy.year, len(textos), '' if len(textos) == 1 else 's')
+armado = armado.replace('<p class="vs pie" id="pie"></p>',
+                        '<p class="vs pie" id="pie">%s</p>' % sello)
 # el archivo suelto no tiene manifest ni iconos al lado: los enlaces sobran
 armado = re.sub(r'\s*<(?:link|meta)[^>]*(?:manifest\.json|icono-\d+\.png|apple-mobile-web-app|apple-touch-icon)[^>]*>', '', armado)
 salida.write_text(armado, encoding='utf-8')
